@@ -23,7 +23,7 @@ import org.springframework.web.bind.annotation.*;
 @RequestMapping("books")
 public class BookController {
 
-    private BookService bookService;
+    final private BookService bookService;
 
     public BookController(BookService bookService) {
         this.bookService = bookService;
