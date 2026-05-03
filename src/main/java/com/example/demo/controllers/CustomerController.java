@@ -1,21 +1,25 @@
 package com.example.demo.controllers;
 
-import com.example.demo.models.AccountModel;
-import com.example.demo.models.CustomerProfileModel;
-import com.example.demo.models.TransactionModel;
-import com.example.demo.models.UserModel;
-import com.example.demo.models.enums.CustomerStatus;
-import com.example.demo.models.enums.TransactionType;
+import com.example.demo.dtos.CustomerDetailResponse;
+import com.example.demo.dtos.CustomerProfileResponse;
+import com.example.demo.dtos.CustomerSummaryResponse;
+import com.example.demo.dtos.CustomerUpdateRequest;
+import com.example.demo.dtos.TransactionResponse;
+import com.example.demo.entities.Account;
+import com.example.demo.entities.CustomerProfile;
+import com.example.demo.entities.Transaction;
+import com.example.demo.entities.User;
+import com.example.demo.entities.enums.CustomerStatus;
+import com.example.demo.entities.enums.TransactionType;
+import com.example.demo.mappers.CustomerMapper;
+import com.example.demo.mappers.TransactionMapper;
 import com.example.demo.services.AccountService;
 import com.example.demo.services.AuthService;
 import com.example.demo.services.TransactionService;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
-import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("customers")
@@ -24,60 +28,51 @@ public class CustomerController {
     final private AuthService authService;
     final private AccountService accountService;
     final private TransactionService transactionService;
+    final private CustomerMapper customerMapper;
+    final private TransactionMapper transactionMapper;
 
-    public CustomerController(AuthService authService, AccountService accountService, TransactionService transactionService) {
+    public CustomerController(AuthService authService, AccountService accountService, TransactionService transactionService, CustomerMapper customerMapper, TransactionMapper transactionMapper) {
         this.authService = authService;
         this.accountService = accountService;
         this.transactionService = transactionService;
+        this.customerMapper = customerMapper;
+        this.transactionMapper = transactionMapper;
     }
 
     @GetMapping("")
-    List<UserModel> getAll(@RequestParam(required = false) CustomerStatus status,
-                           @RequestParam(required = false) String search) {
-        return authService.getAllCustomers(status, search);
+    List<CustomerSummaryResponse> getAll(@RequestParam(required = false) CustomerStatus status,
+                                         @RequestParam(required = false) String search) {
+        return authService.getAllCustomers(status, search).stream()
+                .map(user -> customerMapper.toSummary(user, authService.getProfileByUserId(user.getId())))
+                .toList();
     }
 
     @GetMapping("/{id}")
-    Map<String, Object> getById(@PathVariable int id) {
-        UserModel user = authService.getUserById(id);
+    CustomerDetailResponse getById(@PathVariable int id) {
+        User user = authService.getUserById(id);
         if (user == null) return null;
-        CustomerProfileModel profile = authService.getProfileByUserId(id);
-        List<AccountModel> accounts = accountService.getByUserId(id);
-        BigDecimal totalBalance = accounts.stream()
-                .map(AccountModel::getBalance)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-        Map<String, Object> response = new HashMap<>();
-        response.put("id", user.getId());
-        response.put("email", user.getEmail());
-        response.put("firstName", user.getFirstName());
-        response.put("lastName", user.getLastName());
-        response.put("bsn", profile != null ? profile.getBsn() : null);
-        response.put("phoneNumber", profile != null ? profile.getPhoneNumber() : null);
-        response.put("status", profile != null ? profile.getStatus() : null);
-        response.put("createdAt", user.getCreatedAt());
-        response.put("totalBalance", totalBalance);
-        response.put("accounts", accounts);
-        return response;
+        CustomerProfile profile = authService.getProfileByUserId(id);
+        List<Account> accounts = accountService.getByUserId(id);
+        return customerMapper.toDetail(user, profile, accounts);
     }
 
     @PatchMapping("/{id}")
-    CustomerProfileModel update(@PathVariable int id, @RequestBody Map<String, String> body) {
-        CustomerStatus status = body.get("status") != null ? CustomerStatus.valueOf(body.get("status")) : null;
-        CustomerProfileModel profile = authService.updateCustomer(id, status, body.get("firstName"), body.get("lastName"), body.get("phoneNumber"));
-        if (status == CustomerStatus.ACTIVE && accountService.getByUserId(id).isEmpty()) {
-            accountService.createAccountsForUser(id);
-        }
-        return profile;
+    CustomerProfileResponse update(@PathVariable int id, @RequestBody CustomerUpdateRequest request) {
+        CustomerStatus status = request.status() != null ? CustomerStatus.valueOf(request.status()) : null;
+        CustomerProfile profile = authService.updateCustomer(id, status, request.firstName(), request.lastName(), request.phoneNumber());
+        return customerMapper.toProfile(profile);
     }
 
     @GetMapping("/{id}/transactions")
-    List<TransactionModel> getTransactions(@PathVariable int id,
-                                           @RequestParam(required = false) TransactionType type,
-                                           @RequestParam(required = false) BigDecimal minAmount,
-                                           @RequestParam(required = false) BigDecimal maxAmount) {
+    List<TransactionResponse> getTransactions(@PathVariable int id,
+                                              @RequestParam(required = false) TransactionType type,
+                                              @RequestParam(required = false) BigDecimal minAmount,
+                                              @RequestParam(required = false) BigDecimal maxAmount) {
         List<String> ibans = accountService.getByUserId(id).stream()
-                .map(AccountModel::getIban)
-                .collect(Collectors.toList());
-        return transactionService.getByIbans(ibans);
+                .map(Account::getIban)
+                .toList();
+        return transactionService.getByIbans(ibans, type, minAmount, maxAmount).stream()
+                .map(transactionMapper::toResponse)
+                .toList();
     }
 }

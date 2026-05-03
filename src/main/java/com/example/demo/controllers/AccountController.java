@@ -1,18 +1,19 @@
 package com.example.demo.controllers;
 
-import com.example.demo.models.AccountModel;
-import com.example.demo.models.UserModel;
-import com.example.demo.models.enums.AccountStatus;
-import com.example.demo.models.enums.AccountType;
+import com.example.demo.dtos.AccountDetailResponse;
+import com.example.demo.dtos.AccountLimitUpdateRequest;
+import com.example.demo.dtos.AccountResponse;
+import com.example.demo.dtos.AccountSearchResponse;
+import com.example.demo.entities.Account;
+import com.example.demo.entities.User;
+import com.example.demo.entities.enums.AccountStatus;
+import com.example.demo.entities.enums.AccountType;
+import com.example.demo.mappers.AccountMapper;
 import com.example.demo.services.AccountService;
 import com.example.demo.services.AuthService;
 import org.springframework.web.bind.annotation.*;
 
-import java.math.BigDecimal;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
-import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("accounts")
@@ -20,59 +21,43 @@ public class AccountController {
 
     final private AccountService accountService;
     final private AuthService authService;
+    final private AccountMapper accountMapper;
 
-    public AccountController(AccountService accountService, AuthService authService) {
+    public AccountController(AccountService accountService, AuthService authService, AccountMapper accountMapper) {
         this.accountService = accountService;
         this.authService = authService;
+        this.accountMapper = accountMapper;
     }
 
     @GetMapping("")
-    List<AccountModel> getAll(@RequestParam(required = false) Integer userId,
-                              @RequestParam(required = false) AccountType type,
-                              @RequestParam(required = false) AccountStatus status) {
-        return accountService.getAll(userId, type, status);
+    List<AccountResponse> getAll(@RequestParam(required = false) Integer userId,
+                                 @RequestParam(required = false) AccountType type,
+                                 @RequestParam(required = false) AccountStatus status) {
+        return accountService.getAll(userId, type, status).stream()
+                .map(accountMapper::toResponse)
+                .toList();
     }
 
     // must be declared before /{iban} to avoid route collision
     @GetMapping("/search")
-    List<Map<String, Object>> searchByName(@RequestParam String name) {
+    List<AccountSearchResponse> searchByName(@RequestParam String name) {
         return authService.getAllCustomers(null, name).stream()
                 .flatMap(user -> accountService.getByUserId(user.getId()).stream()
-                        .map(account -> {
-                            Map<String, Object> result = new HashMap<>();
-                            result.put("iban", account.getIban());
-                            result.put("firstName", user.getFirstName());
-                            result.put("lastName", user.getLastName());
-                            return (Map<String, Object>) result;
-                        }))
-                .collect(Collectors.toList());
+                        .map(account -> accountMapper.toSearchResponse(account, user)))
+                .toList();
     }
 
     @GetMapping("/{iban}")
-    Map<String, Object> getByIban(@PathVariable String iban) {
-        AccountModel account = accountService.getByIban(iban);
+    AccountDetailResponse getByIban(@PathVariable String iban) {
+        Account account = accountService.getByIban(iban);
         if (account == null) return null;
-        UserModel owner = authService.getUserById(account.getUserId());
-        Map<String, Object> ownerMap = new HashMap<>();
-        if (owner != null) {
-            ownerMap.put("id", owner.getId());
-            ownerMap.put("firstName", owner.getFirstName());
-            ownerMap.put("lastName", owner.getLastName());
-        }
-        Map<String, Object> response = new HashMap<>();
-        response.put("iban", account.getIban());
-        response.put("type", account.getType());
-        response.put("balance", account.getBalance());
-        response.put("status", account.getStatus());
-        response.put("absoluteTransferLimit", account.getAbsoluteTransferLimit());
-        response.put("dailyTransferLimit", account.getDailyTransferLimit());
-        response.put("createdAt", account.getCreatedAt());
-        response.put("owner", ownerMap);
-        return response;
+        User owner = authService.getUserById(account.getUserId());
+        return accountMapper.toDetail(account, owner);
     }
 
     @PatchMapping("/{iban}/limits")
-    AccountModel updateLimits(@PathVariable String iban, @RequestBody Map<String, BigDecimal> body) {
-        return accountService.updateLimits(iban, body.get("absoluteTransferLimit"), body.get("dailyTransferLimit"));
+    AccountResponse updateLimits(@PathVariable String iban, @RequestBody AccountLimitUpdateRequest request) {
+        Account account = accountService.updateLimits(iban, request.absoluteTransferLimit(), request.dailyTransferLimit());
+        return accountMapper.toResponse(account);
     }
 }
