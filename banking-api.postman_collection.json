@@ -1,0 +1,223 @@
+{
+  "info": {
+    "name": "Banking API",
+    "_postman_id": "banking-api-collection",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8080",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Register",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/auth/register", "host": ["{{baseUrl}}"], "path": ["auth", "register"] },
+            "body": {
+              "mode": "raw",
+              "options": { "raw": { "language": "json" } },
+              "raw": "{\n  \"email\": \"joe@example.com\",\n  \"password\": \"secret123\",\n  \"firstName\": \"Joe\",\n  \"lastName\": \"Davtian\",\n  \"bsn\": \"123456789\",\n  \"phoneNumber\": \"0612345678\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Login",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/auth/login", "host": ["{{baseUrl}}"], "path": ["auth", "login"] },
+            "body": {
+              "mode": "raw",
+              "options": { "raw": { "language": "json" } },
+              "raw": "{\n  \"email\": \"joe@example.com\",\n  \"password\": \"secret123\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Current User (me)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/auth/me?userId=1",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "me"],
+              "query": [{ "key": "userId", "value": "1" }]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Customers",
+      "item": [
+        {
+          "name": "Get All Customers",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/customers?status=ACTIVE&search=",
+              "host": ["{{baseUrl}}"],
+              "path": ["customers"],
+              "query": [
+                { "key": "status", "value": "ACTIVE", "description": "PENDING | ACTIVE | INACTIVE" },
+                { "key": "search", "value": "", "description": "Search by name or email" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Customer by ID",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/customers/1",
+              "host": ["{{baseUrl}}"],
+              "path": ["customers", "1"]
+            }
+          }
+        },
+        {
+          "name": "Update Customer",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": {
+              "raw": "{{baseUrl}}/customers/1",
+              "host": ["{{baseUrl}}"],
+              "path": ["customers", "1"]
+            },
+            "body": {
+              "mode": "raw",
+              "options": { "raw": { "language": "json" } },
+              "raw": "{\n  \"status\": \"ACTIVE\",\n  \"firstName\": \"Joe\",\n  \"lastName\": \"Davtian\",\n  \"phoneNumber\": \"0612345678\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Get Customer Transactions",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/customers/1/transactions?type=&minAmount=&maxAmount=",
+              "host": ["{{baseUrl}}"],
+              "path": ["customers", "1", "transactions"],
+              "query": [
+                { "key": "type", "value": "", "description": "TRANSFER | DEPOSIT | WITHDRAWAL" },
+                { "key": "minAmount", "value": "" },
+                { "key": "maxAmount", "value": "" }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Accounts",
+      "item": [
+        {
+          "name": "Get All Accounts",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/accounts?userId=&type=&status=",
+              "host": ["{{baseUrl}}"],
+              "path": ["accounts"],
+              "query": [
+                { "key": "userId", "value": "" },
+                { "key": "type", "value": "", "description": "CHECKING | SAVINGS" },
+                { "key": "status", "value": "", "description": "ACTIVE | INACTIVE" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Search Accounts by Name",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/accounts/search?name=joe",
+              "host": ["{{baseUrl}}"],
+              "path": ["accounts", "search"],
+              "query": [{ "key": "name", "value": "joe" }]
+            }
+          }
+        },
+        {
+          "name": "Get Account by IBAN",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/accounts/NL01BANK1234567890",
+              "host": ["{{baseUrl}}"],
+              "path": ["accounts", "NL01BANK1234567890"]
+            }
+          }
+        },
+        {
+          "name": "Update Account Limits",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": {
+              "raw": "{{baseUrl}}/accounts/NL01BANK1234567890/limits",
+              "host": ["{{baseUrl}}"],
+              "path": ["accounts", "NL01BANK1234567890", "limits"]
+            },
+            "body": {
+              "mode": "raw",
+              "options": { "raw": { "language": "json" } },
+              "raw": "{\n  \"absoluteTransferLimit\": 500.00,\n  \"dailyTransferLimit\": 200.00\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Transactions",
+      "item": [
+        {
+          "name": "Get All Transactions",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/transactions?iban=&type=&minAmount=&maxAmount=",
+              "host": ["{{baseUrl}}"],
+              "path": ["transactions"],
+              "query": [
+                { "key": "iban", "value": "" },
+                { "key": "type", "value": "", "description": "TRANSFER | DEPOSIT | WITHDRAWAL" },
+                { "key": "minAmount", "value": "" },
+                { "key": "maxAmount", "value": "" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create Transaction",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": {
+              "raw": "{{baseUrl}}/transactions",
+              "host": ["{{baseUrl}}"],
+              "path": ["transactions"]
+            },
+            "body": {
+              "mode": "raw",
+              "options": { "raw": { "language": "json" } },
+              "raw": "{\n  \"fromIban\": \"NL01BANK1234567890\",\n  \"toIban\": \"NL02BANK9876543210\",\n  \"initiatedByUserId\": 1,\n  \"amount\": 100.00,\n  \"type\": \"TRANSFER\",\n  \"description\": \"Rent payment\"\n}"
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
