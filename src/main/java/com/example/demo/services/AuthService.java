@@ -1,76 +1,83 @@
 package com.example.demo.services;
 
-import com.example.demo.models.CustomerProfileModel;
-import com.example.demo.models.UserModel;
-import com.example.demo.models.enums.CustomerStatus;
-import com.example.demo.models.enums.UserRole;
+import com.example.demo.entities.CustomerProfile;
+import com.example.demo.entities.User;
+import com.example.demo.entities.enums.CustomerStatus;
+import com.example.demo.entities.enums.UserRole;
+import com.example.demo.repositories.CustomerProfileRepository;
+import com.example.demo.repositories.UserRepository;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
 import java.util.List;
-import java.util.stream.Collectors;
+import java.util.Locale;
 
 @Service
 public class AuthService {
 
-    private List<UserModel> users = new ArrayList<>();
-    private List<CustomerProfileModel> profiles = new ArrayList<>();
-    private int currentUserId = 0;
-    private int currentProfileId = 0;
+    private final UserRepository userRepository;
+    private final CustomerProfileRepository customerProfileRepository;
+    private final AccountService accountService;
 
-    public UserModel register(String email, String password, String firstName, String lastName, String bsn, String phoneNumber) {
-        currentUserId++;
-        UserModel user = new UserModel(currentUserId, email, password, firstName, lastName, UserRole.CUSTOMER, LocalDateTime.now());
-        users.add(user);
-        currentProfileId++;
-        CustomerProfileModel profile = new CustomerProfileModel(currentProfileId, currentUserId, bsn, phoneNumber, CustomerStatus.PENDING);
-        profiles.add(profile);
+    public AuthService(UserRepository userRepository, CustomerProfileRepository customerProfileRepository, AccountService accountService) {
+        this.userRepository = userRepository;
+        this.customerProfileRepository = customerProfileRepository;
+        this.accountService = accountService;
+    }
+
+    @Transactional
+    public User register(String email, String password, String firstName, String lastName, String bsn, String phoneNumber) {
+        User user = new User(0, email, password, firstName, lastName, UserRole.CUSTOMER, LocalDateTime.now());
+        userRepository.save(user);
+        CustomerProfile profile = new CustomerProfile(0, user, bsn, phoneNumber, CustomerStatus.PENDING);
+        customerProfileRepository.save(profile);
         return user;
     }
 
-    public UserModel login(String email, String password) {
-        return users.stream()
-                .filter(u -> u.getEmail().equals(email) && u.getPasswordHash().equals(password))
-                .findFirst().orElse(null);
+    public User login(String email, String password) {
+        return userRepository.findByEmailAndPasswordHash(email, password);
     }
 
-    public UserModel getUserById(int id) {
-        return users.stream().filter(u -> u.getId() == id).findFirst().orElse(null);
+    public User getUserById(int id) {
+        return userRepository.findById(id).orElse(null);
     }
 
-    public CustomerProfileModel getProfileByUserId(int userId) {
-        return profiles.stream().filter(p -> p.getUserId() == userId).findFirst().orElse(null);
+    public CustomerProfile getProfileByUserId(int userId) {
+        return customerProfileRepository.findByUser_Id(userId);
     }
 
-    public List<UserModel> getAllCustomers(CustomerStatus status, String search) {
-        return users.stream()
-                .filter(u -> {
-                    CustomerProfileModel p = getProfileByUserId(u.getId());
-                    return status == null || (p != null && p.getStatus() == status);
+    public List<User> getAllCustomers(CustomerStatus status, String search) {
+        return userRepository.findAll().stream()
+                .filter(user -> {
+                    CustomerProfile profile = customerProfileRepository.findByUser_Id(user.getId());
+                    if (profile == null) return false;
+                    return status == null || profile.getStatus() == status;
                 })
-                .filter(u -> search == null ||
-                        u.getFirstName().toLowerCase().contains(search.toLowerCase()) ||
-                        u.getLastName().toLowerCase().contains(search.toLowerCase()) ||
-                        u.getEmail().toLowerCase().contains(search.toLowerCase()))
-                .collect(Collectors.toList());
+                .filter(user -> {
+                    if (search == null) return true;
+                    String s = search.toLowerCase(Locale.ROOT);
+                    return user.getFirstName().toLowerCase(Locale.ROOT).contains(s)
+                            || user.getLastName().toLowerCase(Locale.ROOT).contains(s)
+                            || user.getEmail().toLowerCase(Locale.ROOT).contains(s);
+                })
+                .toList();
     }
 
-    public CustomerProfileModel updateCustomer(int userId, CustomerStatus status, String firstName, String lastName, String phoneNumber) {
-        users = users.stream().map(u -> {
-            if (u.getId() == userId) {
-                if (firstName != null) u.setFirstName(firstName);
-                if (lastName != null) u.setLastName(lastName);
-            }
-            return u;
-        }).collect(Collectors.toList());
-        profiles = profiles.stream().map(p -> {
-            if (p.getUserId() == userId) {
-                if (status != null) p.setStatus(status);
-                if (phoneNumber != null) p.setPhoneNumber(phoneNumber);
-            }
-            return p;
-        }).collect(Collectors.toList());
-        return getProfileByUserId(userId);
+    @Transactional
+    public CustomerProfile updateCustomer(int userId, CustomerStatus status, String firstName, String lastName, String phoneNumber) {
+        User user = getUserById(userId);
+        CustomerProfile profile = getProfileByUserId(userId);
+        if (user == null || profile == null) return null;
+        if (firstName != null) user.setFirstName(firstName);
+        if (lastName != null) user.setLastName(lastName);
+        if (status != null) profile.setStatus(status);
+        if (phoneNumber != null) profile.setPhoneNumber(phoneNumber);
+        userRepository.save(user);
+        customerProfileRepository.save(profile);
+        if (status == CustomerStatus.ACTIVE && accountService.getByUserId(userId).isEmpty()) {
+            accountService.createAccountsForUser(user);
+        }
+        return profile;
     }
 }

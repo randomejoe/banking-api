@@ -1,40 +1,44 @@
 package com.example.demo.services;
 
-import com.example.demo.models.TransactionModel;
-import com.example.demo.models.enums.TransactionType;
+import com.example.demo.entities.Transaction;
+import com.example.demo.entities.User;
+import com.example.demo.entities.enums.TransactionType;
+import com.example.demo.repositories.TransactionRepository;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
 import java.util.List;
-import java.util.stream.Collectors;
 
 @Service
 public class TransactionService {
 
-    private List<TransactionModel> transactions = new ArrayList<>();
-    private int currentId = 0;
+    private final TransactionRepository transactionRepository;
 
-    public List<TransactionModel> getAll(String iban, TransactionType type, BigDecimal minAmount, BigDecimal maxAmount) {
-        return transactions.stream()
+    public TransactionService(TransactionRepository transactionRepository) {
+        this.transactionRepository = transactionRepository;
+    }
+
+    public List<Transaction> getAll(String iban, TransactionType type, BigDecimal minAmount, BigDecimal maxAmount) {
+        return transactionRepository.findAll().stream()
                 .filter(t -> iban == null || iban.equals(t.getFromIban()) || iban.equals(t.getToIban()))
                 .filter(t -> type == null || t.getType() == type)
                 .filter(t -> minAmount == null || t.getAmount().compareTo(minAmount) >= 0)
                 .filter(t -> maxAmount == null || t.getAmount().compareTo(maxAmount) <= 0)
-                .collect(Collectors.toList());
+                .toList();
     }
 
-    public List<TransactionModel> getByIbans(List<String> ibans) {
-        return transactions.stream()
-                .filter(t -> ibans.contains(t.getFromIban()) || ibans.contains(t.getToIban()))
-                .collect(Collectors.toList());
+    public List<Transaction> getByIbans(List<String> ibans, TransactionType type, BigDecimal minAmount, BigDecimal maxAmount) {
+        if (ibans.isEmpty()) return List.of();
+        return transactionRepository.findByFromIbanInOrToIbanIn(ibans, ibans).stream()
+                .filter(t -> type == null || t.getType() == type)
+                .filter(t -> minAmount == null || t.getAmount().compareTo(minAmount) >= 0)
+                .filter(t -> maxAmount == null || t.getAmount().compareTo(maxAmount) <= 0)
+                .toList();
     }
 
-    public TransactionModel create(String fromIban, String toIban, int initiatedByUserId, BigDecimal amount, TransactionType type, String description) {
-        currentId++;
-        TransactionModel transaction = new TransactionModel(currentId, fromIban, toIban, initiatedByUserId, amount, type, description, LocalDateTime.now());
-        transactions.add(transaction);
-        return transaction;
+    public Transaction create(String fromIban, String toIban, User initiatedBy, BigDecimal amount, TransactionType type, String description) {
+        Transaction transaction = new Transaction(0, fromIban, toIban, initiatedBy, amount, type, description, LocalDateTime.now());
+        return transactionRepository.save(transaction);
     }
 }
