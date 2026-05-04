@@ -1,0 +1,623 @@
+openapi: 3.0.3
+info:
+  title: Banking API
+  version: 0.0.1
+  description: REST API for the InHolland Banking application.
+
+servers:
+  - url: http://localhost:8080
+
+tags:
+  - name: Auth
+  - name: Accounts
+  - name: Customers
+  - name: Transactions
+
+paths:
+
+  /auth/register:
+    post:
+      tags: [Auth]
+      summary: Register a new customer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '200':
+          description: Registered user
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Authenticate and receive an access token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+
+  /auth/me:
+    get:
+      tags: [Auth]
+      summary: Get the currently authenticated user
+      parameters:
+        - name: userId
+          in: query
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Current user details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CurrentUserResponse'
+
+  /accounts:
+    get:
+      tags: [Accounts]
+      summary: List all accounts
+      parameters:
+        - name: userId
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: type
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/AccountType'
+        - name: status
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/AccountStatus'
+      responses:
+        '200':
+          description: List of accounts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AccountResponse'
+
+  /accounts/search:
+    get:
+      tags: [Accounts]
+      summary: Search accounts by customer name
+      parameters:
+        - name: name
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Matching accounts with owner name
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AccountSearchResponse'
+
+  /accounts/{iban}:
+    get:
+      tags: [Accounts]
+      summary: Get account details by IBAN
+      parameters:
+        - name: iban
+          in: path
+          required: true
+          schema:
+            type: string
+            example: NL91ABNA0417164300
+      responses:
+        '200':
+          description: Account detail with owner
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccountDetailResponse'
+
+  /accounts/{iban}/limits:
+    patch:
+      tags: [Accounts]
+      summary: Update transfer limits for an account
+      parameters:
+        - name: iban
+          in: path
+          required: true
+          schema:
+            type: string
+            example: NL91ABNA0417164300
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AccountLimitUpdateRequest'
+      responses:
+        '200':
+          description: Updated account
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccountResponse'
+
+  /customers:
+    get:
+      tags: [Customers]
+      summary: List all customers
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/CustomerStatus'
+        - name: search
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of customers
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CustomerSummaryResponse'
+
+  /customers/{id}:
+    get:
+      tags: [Customers]
+      summary: Get customer details by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Customer detail with accounts
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomerDetailResponse'
+
+    patch:
+      tags: [Customers]
+      summary: Update customer profile
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CustomerUpdateRequest'
+      responses:
+        '200':
+          description: Updated customer profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomerProfileResponse'
+
+  /customers/{id}/transactions:
+    get:
+      tags: [Customers]
+      summary: Get transactions for a customer
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: type
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/TransactionType'
+        - name: minAmount
+          in: query
+          required: false
+          schema:
+            type: number
+        - name: maxAmount
+          in: query
+          required: false
+          schema:
+            type: number
+      responses:
+        '200':
+          description: List of transactions for the customer's accounts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TransactionResponse'
+
+  /transactions:
+    get:
+      tags: [Transactions]
+      summary: List all transactions
+      parameters:
+        - name: iban
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: type
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/TransactionType'
+        - name: minAmount
+          in: query
+          required: false
+          schema:
+            type: number
+        - name: maxAmount
+          in: query
+          required: false
+          schema:
+            type: number
+      responses:
+        '200':
+          description: List of transactions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TransactionResponse'
+
+    post:
+      tags: [Transactions]
+      summary: Create a new transaction
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TransactionCreateRequest'
+      responses:
+        '200':
+          description: Created transaction
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TransactionResponse'
+
+components:
+  schemas:
+
+    # ── Enums ────────────────────────────────────────────────────────────────
+
+    AccountType:
+      type: string
+      enum: [CHECKING, SAVINGS]
+
+    AccountStatus:
+      type: string
+      enum: [ACTIVE, CLOSED]
+
+    CustomerStatus:
+      type: string
+      enum: [PENDING, ACTIVE, CLOSED]
+
+    TransactionType:
+      type: string
+      enum: [TRANSFER, DEPOSIT, WITHDRAWAL]
+
+    UserRole:
+      type: string
+      enum: [CUSTOMER, EMPLOYEE]
+
+    # ── Requests ─────────────────────────────────────────────────────────────
+
+    RegisterRequest:
+      type: object
+      required: [email, password, firstName, lastName, bsn, phoneNumber]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+        firstName:
+          type: string
+        lastName:
+          type: string
+        bsn:
+          type: string
+        phoneNumber:
+          type: string
+
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+
+    AccountLimitUpdateRequest:
+      type: object
+      properties:
+        absoluteTransferLimit:
+          type: number
+        dailyTransferLimit:
+          type: number
+
+    CustomerUpdateRequest:
+      type: object
+      properties:
+        status:
+          type: string
+          description: Stringified CustomerStatus value
+        firstName:
+          type: string
+        lastName:
+          type: string
+        phoneNumber:
+          type: string
+
+    TransactionCreateRequest:
+      type: object
+      required: [initiatedByUserId, amount, type]
+      properties:
+        fromIban:
+          type: string
+        toIban:
+          type: string
+        initiatedByUserId:
+          type: integer
+        amount:
+          type: number
+        type:
+          type: string
+          description: Stringified TransactionType value
+        description:
+          type: string
+
+    # ── Responses ────────────────────────────────────────────────────────────
+
+    UserResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+        email:
+          type: string
+        firstName:
+          type: string
+        lastName:
+          type: string
+        role:
+          $ref: '#/components/schemas/UserRole'
+        createdAt:
+          type: string
+          format: date-time
+
+    LoginResponse:
+      type: object
+      properties:
+        accessToken:
+          type: string
+        tokenType:
+          type: string
+        expiresIn:
+          type: integer
+        role:
+          $ref: '#/components/schemas/UserRole'
+        status:
+          $ref: '#/components/schemas/CustomerStatus'
+
+    CurrentUserResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+        email:
+          type: string
+        firstName:
+          type: string
+        lastName:
+          type: string
+        role:
+          $ref: '#/components/schemas/UserRole'
+        status:
+          $ref: '#/components/schemas/CustomerStatus'
+        bsn:
+          type: string
+        phoneNumber:
+          type: string
+
+    AccountResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+        userId:
+          type: integer
+        iban:
+          type: string
+        type:
+          $ref: '#/components/schemas/AccountType'
+        balance:
+          type: number
+        absoluteTransferLimit:
+          type: number
+        dailyTransferLimit:
+          type: number
+        status:
+          $ref: '#/components/schemas/AccountStatus'
+        createdAt:
+          type: string
+          format: date-time
+
+    AccountDetailResponse:
+      type: object
+      properties:
+        iban:
+          type: string
+        type:
+          $ref: '#/components/schemas/AccountType'
+        balance:
+          type: number
+        status:
+          $ref: '#/components/schemas/AccountStatus'
+        absoluteTransferLimit:
+          type: number
+        dailyTransferLimit:
+          type: number
+        createdAt:
+          type: string
+          format: date-time
+        owner:
+          $ref: '#/components/schemas/OwnerSummaryResponse'
+
+    AccountSearchResponse:
+      type: object
+      properties:
+        iban:
+          type: string
+        firstName:
+          type: string
+        lastName:
+          type: string
+
+    AccountSummaryResponse:
+      type: object
+      properties:
+        iban:
+          type: string
+        type:
+          $ref: '#/components/schemas/AccountType'
+        balance:
+          type: number
+        status:
+          $ref: '#/components/schemas/AccountStatus'
+
+    OwnerSummaryResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+        firstName:
+          type: string
+        lastName:
+          type: string
+
+    CustomerSummaryResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+        email:
+          type: string
+        firstName:
+          type: string
+        lastName:
+          type: string
+        role:
+          $ref: '#/components/schemas/UserRole'
+        status:
+          $ref: '#/components/schemas/CustomerStatus'
+        createdAt:
+          type: string
+          format: date-time
+
+    CustomerDetailResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+        email:
+          type: string
+        firstName:
+          type: string
+        lastName:
+          type: string
+        bsn:
+          type: string
+        phoneNumber:
+          type: string
+        status:
+          $ref: '#/components/schemas/CustomerStatus'
+        createdAt:
+          type: string
+          format: date-time
+        totalBalance:
+          type: number
+        accounts:
+          type: array
+          items:
+            $ref: '#/components/schemas/AccountSummaryResponse'
+
+    CustomerProfileResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+        userId:
+          type: integer
+        bsn:
+          type: string
+        phoneNumber:
+          type: string
+        status:
+          $ref: '#/components/schemas/CustomerStatus'
+
+    TransactionResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+        fromIban:
+          type: string
+        toIban:
+          type: string
+        initiatedByUserId:
+          type: integer
+        amount:
+          type: number
+        type:
+          $ref: '#/components/schemas/TransactionType'
+        description:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
