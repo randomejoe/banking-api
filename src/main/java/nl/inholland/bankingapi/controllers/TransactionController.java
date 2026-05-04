@@ -6,7 +6,7 @@ import nl.inholland.bankingapi.entities.Transaction;
 import nl.inholland.bankingapi.entities.User;
 import nl.inholland.bankingapi.entities.enums.TransactionType;
 import nl.inholland.bankingapi.mappers.TransactionMapper;
-import nl.inholland.bankingapi.services.AuthService;
+import nl.inholland.bankingapi.services.CustomerService;
 import nl.inholland.bankingapi.services.TransactionService;
 import org.springframework.web.bind.annotation.*;
 
@@ -18,12 +18,12 @@ import java.util.List;
 public class TransactionController {
 
     final private TransactionService transactionService;
-    final private AuthService authService;
+    final private CustomerService customerService;
     final private TransactionMapper transactionMapper;
 
-    public TransactionController(TransactionService transactionService, AuthService authService, TransactionMapper transactionMapper) {
+    public TransactionController(TransactionService transactionService, CustomerService customerService, TransactionMapper transactionMapper) {
         this.transactionService = transactionService;
-        this.authService = authService;
+        this.customerService = customerService;
         this.transactionMapper = transactionMapper;
     }
 
@@ -39,7 +39,7 @@ public class TransactionController {
 
     @PostMapping("")
     TransactionResponse create(@RequestBody TransactionCreateRequest request) {
-        User initiatedBy = authService.getUserById(request.initiatedByUserId());
+        User initiatedBy = customerService.getUserById(request.initiatedByUserId());
         TransactionType type = TransactionType.valueOf(request.type());
         Transaction transaction = transactionService.create(request.fromIban(), request.toIban(), initiatedBy, request.amount(), type, request.description());
         return transactionMapper.toResponse(transaction);

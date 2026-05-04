@@ -10,6 +10,7 @@ import nl.inholland.bankingapi.entities.User;
 import nl.inholland.bankingapi.mappers.CustomerMapper;
 import nl.inholland.bankingapi.mappers.UserMapper;
 import nl.inholland.bankingapi.services.AuthService;
+import nl.inholland.bankingapi.services.CustomerService;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -17,11 +18,13 @@ import org.springframework.web.bind.annotation.*;
 public class  AuthController {
 
     final private AuthService authService;
+    final private CustomerService customerService;
     final private UserMapper userMapper;
     final private CustomerMapper customerMapper;
 
-    public AuthController(AuthService authService, UserMapper userMapper, CustomerMapper customerMapper) {
+    public AuthController(AuthService authService, CustomerService customerService, UserMapper userMapper, CustomerMapper customerMapper) {
         this.authService = authService;
+        this.customerService = customerService;
         this.userMapper = userMapper;
         this.customerMapper = customerMapper;
     }
@@ -43,15 +46,15 @@ public class  AuthController {
     LoginResponse login(@RequestBody LoginRequest request) {
         User user = authService.login(request.email(), request.password());
         if (user == null) return null;
-        CustomerProfile profile = authService.getProfileByUserId(user.getId());
+        CustomerProfile profile = customerService.getProfileByUserId(user.getId());
         return customerMapper.toLogin(user, profile);
     }
 
     @GetMapping("/me")
     CurrentUserResponse me(@RequestParam int userId) {
-        User user = authService.getUserById(userId);
+        User user = customerService.getUserById(userId);
         if (user == null) return null;
-        CustomerProfile profile = authService.getProfileByUserId(userId);
+        CustomerProfile profile = customerService.getProfileByUserId(userId);
         return customerMapper.toCurrentUser(user, profile);
     }
 }
