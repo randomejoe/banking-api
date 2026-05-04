@@ -6,8 +6,10 @@ import nl.inholland.bankingapi.entities.enums.AccountStatus;
 import nl.inholland.bankingapi.entities.enums.AccountType;
 import nl.inholland.bankingapi.repositories.AccountRepository;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -45,24 +47,38 @@ public class AccountService {
     }
 
     public List<Account> getAll(Integer userId, AccountType type, AccountStatus status) {
-        return accountRepository.findAll().stream()
-                .filter(a -> userId == null || a.getUserId() == userId)
+        List<Account> accounts = (userId != null)
+                ? accountRepository.findByUser_Id(userId)
+                : accountRepository.findAll();
+
+        return accounts.stream()
                 .filter(a -> type == null || a.getType() == type)
                 .filter(a -> status == null || a.getStatus() == status)
                 .toList();
     }
 
     public Account getByIban(String iban) {
-        return accountRepository.findByIban(iban);
+        Account account = accountRepository.findByIban(iban);
+        if (account == null) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Account not found: " + iban);
+        return account;
     }
 
     public List<Account> getByUserId(int userId) {
         return accountRepository.findByUser_Id(userId);
     }
 
+    public List<Account> getByUserIds(List<Integer> userIds) {
+        if (userIds.isEmpty()) return List.of();
+        return accountRepository.findByUser_IdIn(userIds);
+    }
+
     public Account updateLimits(String iban, BigDecimal absoluteTransferLimit, BigDecimal dailyTransferLimit) {
+        if (absoluteTransferLimit != null && absoluteTransferLimit.compareTo(BigDecimal.ZERO) < 0)
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "absoluteTransferLimit must be >= 0");
+        if (dailyTransferLimit != null && dailyTransferLimit.compareTo(BigDecimal.ZERO) < 0)
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "dailyTransferLimit must be >= 0");
+
         Account account = getByIban(iban);
-        if (account == null) return null;
         if (absoluteTransferLimit != null) account.setAbsoluteTransferLimit(absoluteTransferLimit);
         if (dailyTransferLimit != null) account.setDailyTransferLimit(dailyTransferLimit);
         return accountRepository.save(account);

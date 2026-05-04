@@ -108,7 +108,10 @@ public class TransactionService {
         // dailyTransferLimit: total outgoing transfers today must not exceed this value
         LocalDateTime startOfDay = LocalDate.now().atStartOfDay();
         BigDecimal transferredToday = transactionRepository
-                .sumOutgoingTransfersSince(from.getIban(), startOfDay);
+                .findByFromIbanAndTypeAndTimestampGreaterThanEqual(from.getIban(), TransactionType.TRANSFER, startOfDay)
+                .stream()
+                .map(Transaction::getAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
         if (transferredToday.add(amount).compareTo(from.getDailyTransferLimit()) > 0) {
             throw new TransactionException(
                     "Transfer would exceed the daily transfer limit for account: " + from.getIban());

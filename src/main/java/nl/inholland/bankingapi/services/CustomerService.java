@@ -9,7 +9,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
-import java.util.Locale;
 
 @Service
 public class CustomerService {
@@ -33,18 +32,15 @@ public class CustomerService {
     }
 
     public List<User> getAllCustomers(CustomerStatus status, String search) {
-        return userRepository.findAll().stream()
+        List<User> users = (search != null)
+                ? userRepository.findByFirstNameContainingIgnoreCaseOrLastNameContainingIgnoreCaseOrEmailContainingIgnoreCase(search, search, search)
+                : userRepository.findAll();
+
+        return users.stream()
                 .filter(user -> {
                     CustomerProfile profile = customerProfileRepository.findByUser_Id(user.getId());
                     if (profile == null) return false;
                     return status == null || profile.getStatus() == status;
-                })
-                .filter(user -> {
-                    if (search == null) return true;
-                    String s = search.toLowerCase(Locale.ROOT);
-                    return user.getFirstName().toLowerCase(Locale.ROOT).contains(s)
-                            || user.getLastName().toLowerCase(Locale.ROOT).contains(s)
-                            || user.getEmail().toLowerCase(Locale.ROOT).contains(s);
                 })
                 .toList();
     }
@@ -66,4 +62,3 @@ public class CustomerService {
         return profile;
     }
 }
-
