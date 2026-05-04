@@ -10,7 +10,7 @@ import nl.inholland.bankingapi.entities.enums.AccountStatus;
 import nl.inholland.bankingapi.entities.enums.AccountType;
 import nl.inholland.bankingapi.mappers.AccountMapper;
 import nl.inholland.bankingapi.services.AccountService;
-import nl.inholland.bankingapi.services.AuthService;
+import nl.inholland.bankingapi.services.CustomerService;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -20,12 +20,12 @@ import java.util.List;
 public class AccountController {
 
     final private AccountService accountService;
-    final private AuthService authService;
+    final private CustomerService customerService;
     final private AccountMapper accountMapper;
 
-    public AccountController(AccountService accountService, AuthService authService, AccountMapper accountMapper) {
+    public AccountController(AccountService accountService, CustomerService customerService, AccountMapper accountMapper) {
         this.accountService = accountService;
-        this.authService = authService;
+        this.customerService = customerService;
         this.accountMapper = accountMapper;
     }
 
@@ -41,7 +41,7 @@ public class AccountController {
     // must be declared before /{iban} to avoid route collision
     @GetMapping("/search")
     List<AccountSearchResponse> searchByName(@RequestParam String name) {
-        return authService.getAllCustomers(null, name).stream()
+        return customerService.getAllCustomers(null, name).stream()
                 .flatMap(user -> accountService.getByUserId(user.getId()).stream()
                         .map(account -> accountMapper.toSearchResponse(account, user)))
                 .toList();
@@ -51,7 +51,7 @@ public class AccountController {
     AccountDetailResponse getByIban(@PathVariable String iban) {
         Account account = accountService.getByIban(iban);
         if (account == null) return null;
-        User owner = authService.getUserById(account.getUserId());
+        User owner = customerService.getUserById(account.getUserId());
         return accountMapper.toDetail(account, owner);
     }
 
