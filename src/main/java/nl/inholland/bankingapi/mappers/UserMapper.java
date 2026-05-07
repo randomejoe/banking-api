@@ -2,20 +2,10 @@ package nl.inholland.bankingapi.mappers;
 
 import nl.inholland.bankingapi.dtos.UserResponse;
 import nl.inholland.bankingapi.entities.User;
-import org.springframework.stereotype.Component;
+import org.mapstruct.Mapper;
 
-@Component
-public class UserMapper {
+@Mapper(componentModel = "spring")
+public interface UserMapper {
 
-    public UserResponse toResponse(User user) {
-        if (user == null) return null;
-        return new UserResponse(
-                user.getId(),
-                user.getEmail(),
-                user.getFirstName(),
-                user.getLastName(),
-                user.getRole(),
-                user.getCreatedAt()
-        );
-    }
+    UserResponse toResponse(User user);
 }

@@ -44,14 +44,14 @@ public class AccountController {
                 .map(u -> u.getId())
                 .toList();
         return accountService.getByUserIds(userIds).stream()
-                .map(account -> accountMapper.toSearchResponse(account, account.getUser()))
+                .map(accountMapper::toSearchResponse)
                 .toList();
     }
 
     @GetMapping("/{iban}")
     AccountDetailResponse getByIban(@PathVariable String iban) {
         Account account = accountService.getByIban(iban);
-        return accountMapper.toDetail(account, account.getUser());
+        return accountMapper.toDetail(account);
     }
 
     @PatchMapping("/{iban}/limits")

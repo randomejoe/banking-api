@@ -7,61 +7,22 @@ import nl.inholland.bankingapi.dtos.AccountSummaryResponse;
 import nl.inholland.bankingapi.dtos.OwnerSummaryResponse;
 import nl.inholland.bankingapi.entities.Account;
 import nl.inholland.bankingapi.entities.User;
-import org.springframework.stereotype.Component;
+import org.mapstruct.Mapper;
+import org.mapstruct.Mapping;
 
-@Component
-public class AccountMapper {
+@Mapper(componentModel = "spring")
+public interface AccountMapper {
 
-    public AccountResponse toResponse(Account account) {
-        if (account == null) return null;
-        return new AccountResponse(
-                account.getId(),
-                account.getUserId(),
-                account.getIban(),
-                account.getType(),
-                account.getBalance(),
-                account.getAbsoluteTransferLimit(),
-                account.getDailyTransferLimit(),
-                account.getStatus(),
-                account.getCreatedAt()
-        );
-    }
+    AccountResponse toResponse(Account account);
 
-    public AccountSummaryResponse toSummary(Account account) {
-        if (account == null) return null;
-        return new AccountSummaryResponse(
-                account.getIban(),
-                account.getType(),
-                account.getBalance(),
-                account.getStatus()
-        );
-    }
+    AccountSummaryResponse toSummary(Account account);
 
-    public AccountDetailResponse toDetail(Account account, User owner) {
-        if (account == null) return null;
-        OwnerSummaryResponse ownerSummary = owner == null ? null : new OwnerSummaryResponse(
-                owner.getId(),
-                owner.getFirstName(),
-                owner.getLastName()
-        );
-        return new AccountDetailResponse(
-                account.getIban(),
-                account.getType(),
-                account.getBalance(),
-                account.getStatus(),
-                account.getAbsoluteTransferLimit(),
-                account.getDailyTransferLimit(),
-                account.getCreatedAt(),
-                ownerSummary
-        );
-    }
+    @Mapping(source = "user", target = "owner")
+    AccountDetailResponse toDetail(Account account);
 
-    public AccountSearchResponse toSearchResponse(Account account, User owner) {
-        if (account == null || owner == null) return null;
-        return new AccountSearchResponse(
-                account.getIban(),
-                owner.getFirstName(),
-                owner.getLastName()
-        );
-    }
+    @Mapping(source = "user.firstName", target = "firstName")
+    @Mapping(source = "user.lastName", target = "lastName")
+    AccountSearchResponse toSearchResponse(Account account);
+
+    OwnerSummaryResponse toOwnerSummary(User user);
 }
