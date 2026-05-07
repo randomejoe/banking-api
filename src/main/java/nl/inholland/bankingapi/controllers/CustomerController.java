@@ -58,7 +58,7 @@ public class CustomerController {
     @PatchMapping("/{id}")
     CustomerProfileResponse update(@PathVariable int id, @RequestBody CustomerUpdateRequest request) {
         CustomerStatus status = request.status() != null ? CustomerStatus.valueOf(request.status()) : null;
-        CustomerProfile profile = customerService.updateCustomer(id, status, request.firstName(), request.lastName(), request.phoneNumber());
+        CustomerProfile profile = customerService.updateCustomer(id, status, request.firstName(), request.lastName(), request.phoneNumber(), request.absoluteTransferLimit(), request.dailyTransferLimit());
         return customerMapper.toProfile(profile);
     }
 

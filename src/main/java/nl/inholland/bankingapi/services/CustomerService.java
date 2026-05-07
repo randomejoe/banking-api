@@ -8,6 +8,7 @@ import nl.inholland.bankingapi.repositories.UserRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 @Service
@@ -46,7 +47,7 @@ public class CustomerService {
     }
 
     @Transactional
-    public CustomerProfile updateCustomer(int userId, CustomerStatus status, String firstName, String lastName, String phoneNumber) {
+    public CustomerProfile updateCustomer(int userId, CustomerStatus status, String firstName, String lastName, String phoneNumber, BigDecimal absoluteTransferLimit, BigDecimal dailyTransferLimit) {
         User user = getUserById(userId);
         CustomerProfile profile = getProfileByUserId(userId);
         if (user == null || profile == null) return null;
@@ -57,7 +58,9 @@ public class CustomerService {
         userRepository.save(user);
         customerProfileRepository.save(profile);
         if (status == CustomerStatus.ACTIVE && accountService.getByUserId(userId).isEmpty()) {
-            accountService.createAccountsForUser(user);
+            BigDecimal absLimit = absoluteTransferLimit != null ? absoluteTransferLimit : new BigDecimal("1000.00");
+            BigDecimal dailyLimit = dailyTransferLimit != null ? dailyTransferLimit : new BigDecimal("500.00");
+            accountService.createAccountsForUser(user, absLimit, dailyLimit);
         }
         return profile;
     }

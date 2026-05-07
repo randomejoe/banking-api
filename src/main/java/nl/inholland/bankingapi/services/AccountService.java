@@ -36,25 +36,26 @@ public class AccountService {
     }
 
     @Transactional
-    public List<Account> createAccountsForUser(User user) {
+    public List<Account> createAccountsForUser(User user, BigDecimal absoluteTransferLimit, BigDecimal dailyTransferLimit) {
+        if (absoluteTransferLimit == null)
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "absoluteTransferLimit is required");
+        if (dailyTransferLimit == null)
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "dailyTransferLimit is required");
+        if (absoluteTransferLimit.compareTo(BigDecimal.ZERO) < 0)
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "absoluteTransferLimit must be >= 0");
+        if (dailyTransferLimit.compareTo(BigDecimal.ZERO) < 0)
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "dailyTransferLimit must be >= 0");
         Account checking = new Account(0, user, generateUniqueIban(), AccountType.CHECKING,
-                BigDecimal.ZERO, new BigDecimal("1000.00"), new BigDecimal("500.00"), AccountStatus.ACTIVE, LocalDateTime.now());
+                BigDecimal.ZERO, absoluteTransferLimit, dailyTransferLimit, AccountStatus.ACTIVE, LocalDateTime.now());
         Account savings = new Account(0, user, generateUniqueIban(), AccountType.SAVINGS,
-                BigDecimal.ZERO, new BigDecimal("1000.00"), new BigDecimal("500.00"), AccountStatus.ACTIVE, LocalDateTime.now());
+                BigDecimal.ZERO, absoluteTransferLimit, dailyTransferLimit, AccountStatus.ACTIVE, LocalDateTime.now());
         accountRepository.save(checking);
         accountRepository.save(savings);
         return List.of(checking, savings);
     }
 
     public List<Account> getAll(Integer userId, AccountType type, AccountStatus status) {
-        List<Account> accounts = (userId != null)
-                ? accountRepository.findByUser_Id(userId)
-                : accountRepository.findAll();
-
-        return accounts.stream()
-                .filter(a -> type == null || a.getType() == type)
-                .filter(a -> status == null || a.getStatus() == status)
-                .toList();
+        return accountRepository.findByFilters(userId, type, status);
     }
 
     public Account getByIban(String iban) {
