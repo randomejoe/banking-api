@@ -15,6 +15,7 @@ import nl.inholland.bankingapi.mappers.TransactionMapper;
 import nl.inholland.bankingapi.services.AccountService;
 import nl.inholland.bankingapi.services.CustomerService;
 import nl.inholland.bankingapi.services.TransactionService;
+import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
@@ -56,7 +57,7 @@ public class CustomerController {
     }
 
     @PatchMapping("/{id}")
-    CustomerProfileResponse update(@PathVariable int id, @RequestBody CustomerUpdateRequest request) {
+    CustomerProfileResponse update(@PathVariable int id, @RequestBody @Valid CustomerUpdateRequest request) {
         CustomerStatus status = request.status() != null ? CustomerStatus.valueOf(request.status()) : null;
         CustomerProfile profile = customerService.updateCustomer(id, status, request.firstName(), request.lastName(), request.phoneNumber(), request.absoluteTransferLimit(), request.dailyTransferLimit());
         return customerMapper.toProfile(profile);

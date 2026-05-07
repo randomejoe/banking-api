@@ -11,6 +11,7 @@ import nl.inholland.bankingapi.mappers.CustomerMapper;
 import nl.inholland.bankingapi.mappers.UserMapper;
 import nl.inholland.bankingapi.services.AuthService;
 import nl.inholland.bankingapi.services.CustomerService;
+import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -30,7 +31,7 @@ public class  AuthController {
     }
 
     @PostMapping("/register")
-    UserResponse register(@RequestBody RegisterRequest request) {
+    UserResponse register(@RequestBody @Valid RegisterRequest request) {
         User user = authService.register(
                 request.email(),
                 request.password(),
@@ -43,7 +44,7 @@ public class  AuthController {
     }
 
     @PostMapping("/login")
-    LoginResponse login(@RequestBody LoginRequest request) {
+    LoginResponse login(@RequestBody @Valid LoginRequest request) {
         User user = authService.login(request.email(), request.password());
         if (user == null) return null;
         CustomerProfile profile = customerService.getProfileByUserId(user.getId());
