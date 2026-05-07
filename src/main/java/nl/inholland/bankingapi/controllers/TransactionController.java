@@ -8,6 +8,7 @@ import nl.inholland.bankingapi.entities.enums.TransactionType;
 import nl.inholland.bankingapi.mappers.TransactionMapper;
 import nl.inholland.bankingapi.services.CustomerService;
 import nl.inholland.bankingapi.services.TransactionService;
+import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
@@ -38,7 +39,7 @@ public class TransactionController {
     }
 
     @PostMapping("")
-    TransactionResponse create(@RequestBody TransactionCreateRequest request) {
+    TransactionResponse create(@RequestBody @Valid TransactionCreateRequest request) {
         User initiatedBy = customerService.getUserById(request.initiatedByUserId());
         TransactionType type = TransactionType.valueOf(request.type());
         Transaction transaction = transactionService.create(request.fromIban(), request.toIban(), initiatedBy, request.amount(), type, request.description());

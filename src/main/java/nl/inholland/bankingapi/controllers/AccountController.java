@@ -10,6 +10,7 @@ import nl.inholland.bankingapi.entities.enums.AccountType;
 import nl.inholland.bankingapi.mappers.AccountMapper;
 import nl.inholland.bankingapi.services.AccountService;
 import nl.inholland.bankingapi.services.CustomerService;
+import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -55,7 +56,7 @@ public class AccountController {
     }
 
     @PatchMapping("/{iban}/limits")
-    AccountResponse updateLimits(@PathVariable String iban, @RequestBody AccountLimitUpdateRequest request) {
+    AccountResponse updateLimits(@PathVariable String iban, @RequestBody @Valid AccountLimitUpdateRequest request) {
         return accountMapper.toResponse(accountService.updateLimits(iban, request.absoluteTransferLimit(), request.dailyTransferLimit()));
     }
 }
