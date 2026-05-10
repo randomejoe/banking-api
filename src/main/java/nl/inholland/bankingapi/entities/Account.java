@@ -7,6 +7,11 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Entity
+@Table(name = "account", indexes = {
+        @Index(name = "idx_account_user_id", columnList = "user_id"),
+        @Index(name = "idx_account_type",    columnList = "type"),
+        @Index(name = "idx_account_status",  columnList = "status")
+})
 public class Account {
 
     @Id

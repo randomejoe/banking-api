@@ -87,10 +87,8 @@ public class TransactionService {
         if (iban == null || iban.isBlank()) {
             throw new TransactionException(label + " IBAN is required");
         }
-        Account account = accountRepository.findByIban(iban);
-        if (account == null) {
-            throw new TransactionException(label + " account not found: " + iban);
-        }
+        Account account = accountRepository.findByIban(iban)
+                .orElseThrow(() -> new TransactionException(label + " account not found: " + iban));
         if (account.getStatus() != AccountStatus.ACTIVE) {
             throw new TransactionException(label + " account is not active: " + iban);
         }

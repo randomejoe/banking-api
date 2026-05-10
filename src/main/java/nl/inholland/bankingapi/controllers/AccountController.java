@@ -1,16 +1,16 @@
 package nl.inholland.bankingapi.controllers;
 
-import nl.inholland.bankingapi.dtos.AccountDetailResponse;
-import nl.inholland.bankingapi.dtos.AccountLimitUpdateRequest;
 import nl.inholland.bankingapi.dtos.AccountResponse;
-import nl.inholland.bankingapi.dtos.AccountSearchResponse;
-import nl.inholland.bankingapi.entities.Account;
+import nl.inholland.bankingapi.dtos.AccountUpdateRequest;
 import nl.inholland.bankingapi.entities.enums.AccountStatus;
 import nl.inholland.bankingapi.entities.enums.AccountType;
 import nl.inholland.bankingapi.mappers.AccountMapper;
 import nl.inholland.bankingapi.services.AccountService;
 import nl.inholland.bankingapi.services.CustomerService;
 import jakarta.validation.Valid;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -19,9 +19,9 @@ import java.util.List;
 @RequestMapping("accounts")
 public class AccountController {
 
-    final private AccountService accountService;
-    final private CustomerService customerService;
-    final private AccountMapper accountMapper;
+    private final AccountService accountService;
+    private final CustomerService customerService;
+    private final AccountMapper accountMapper;
 
     public AccountController(AccountService accountService, CustomerService customerService, AccountMapper accountMapper) {
         this.accountService = accountService;
@@ -30,33 +30,25 @@ public class AccountController {
     }
 
     @GetMapping("")
-    List<AccountResponse> getAll(@RequestParam(required = false) Integer userId,
+    Page<AccountResponse> getAll(@RequestParam(required = false) Integer userId,
                                  @RequestParam(required = false) AccountType type,
-                                 @RequestParam(required = false) AccountStatus status) {
-        return accountService.getAll(userId, type, status).stream()
-                .map(accountMapper::toResponse)
-                .toList();
+                                 @RequestParam(required = false) AccountStatus status,
+                                 @RequestParam(required = false) String iban,
+                                 @RequestParam(required = false) String name,
+                                 @PageableDefault(size = 20) Pageable pageable) {
+        if (name != null) {
+            List<Integer> userIds = customerService.getAllCustomers(null, name).stream()
+                    .map(u -> u.getId())
+                    .toList();
+            return accountService.getByUserIds(userIds, pageable).map(accountMapper::toResponse);
+        }
+        return accountService.getAll(userId, type, status, iban, pageable).map(accountMapper::toResponse);
     }
 
-    // must be declared before /{iban} to avoid route collision
-    @GetMapping("/search")
-    List<AccountSearchResponse> searchByName(@RequestParam String name) {
-        List<Integer> userIds = customerService.getAllCustomers(null, name).stream()
-                .map(u -> u.getId())
-                .toList();
-        return accountService.getByUserIds(userIds).stream()
-                .map(accountMapper::toSearchResponse)
-                .toList();
-    }
-
-    @GetMapping("/{iban}")
-    AccountDetailResponse getByIban(@PathVariable String iban) {
-        Account account = accountService.getByIban(iban);
-        return accountMapper.toDetail(account);
-    }
-
-    @PatchMapping("/{iban}/limits")
-    AccountResponse updateLimits(@PathVariable String iban, @RequestBody @Valid AccountLimitUpdateRequest request) {
-        return accountMapper.toResponse(accountService.updateLimits(iban, request.absoluteTransferLimit(), request.dailyTransferLimit()));
+    @PatchMapping("/{iban}")
+    AccountResponse updateAccount(@PathVariable String iban, @RequestBody @Valid AccountUpdateRequest request) {
+        return accountMapper.toResponse(
+                accountService.updateAccount(iban, request.absoluteTransferLimit(), request.dailyTransferLimit(), request.status())
+        );
     }
 }

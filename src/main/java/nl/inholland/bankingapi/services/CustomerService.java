@@ -51,13 +51,14 @@ public class CustomerService {
         User user = getUserById(userId);
         CustomerProfile profile = getProfileByUserId(userId);
         if (user == null || profile == null) return null;
+        CustomerStatus previousStatus = profile.getStatus();
         if (firstName != null) user.setFirstName(firstName);
         if (lastName != null) user.setLastName(lastName);
         if (status != null) profile.setStatus(status);
         if (phoneNumber != null) profile.setPhoneNumber(phoneNumber);
         userRepository.save(user);
         customerProfileRepository.save(profile);
-        if (status == CustomerStatus.ACTIVE && accountService.getByUserId(userId).isEmpty()) {
+        if (status == CustomerStatus.ACTIVE && previousStatus != CustomerStatus.ACTIVE) {
             BigDecimal absLimit = absoluteTransferLimit != null ? absoluteTransferLimit : new BigDecimal("1000.00");
             BigDecimal dailyLimit = dailyTransferLimit != null ? dailyTransferLimit : new BigDecimal("500.00");
             accountService.createAccountsForUser(user, absLimit, dailyLimit);

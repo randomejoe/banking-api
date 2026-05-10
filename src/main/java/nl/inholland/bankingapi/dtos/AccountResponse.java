@@ -7,7 +7,6 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 public record AccountResponse(
-        int id,
         int userId,
         String iban,
         AccountType type,

@@ -1,11 +1,15 @@
 package nl.inholland.bankingapi.services;
 
+import jakarta.persistence.criteria.Predicate;
 import nl.inholland.bankingapi.entities.Account;
 import nl.inholland.bankingapi.entities.User;
 import nl.inholland.bankingapi.entities.enums.AccountStatus;
 import nl.inholland.bankingapi.entities.enums.AccountType;
 import nl.inholland.bankingapi.repositories.AccountRepository;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -13,14 +17,13 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.LongSupplier;
 
 @Service
 public class AccountService {
-
-    private static final int MAX_IBAN_ATTEMPTS = 10;
 
     private final AccountRepository accountRepository;
     private final LongSupplier ibanNumberSource;
@@ -45,52 +48,65 @@ public class AccountService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "absoluteTransferLimit must be >= 0");
         if (dailyTransferLimit.compareTo(BigDecimal.ZERO) < 0)
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "dailyTransferLimit must be >= 0");
-        Account checking = new Account(0, user, generateUniqueIban(), AccountType.CHECKING,
+        Account checking = new Account(0, user, generateIban(), AccountType.CHECKING,
                 BigDecimal.ZERO, absoluteTransferLimit, dailyTransferLimit, AccountStatus.ACTIVE, LocalDateTime.now());
-        Account savings = new Account(0, user, generateUniqueIban(), AccountType.SAVINGS,
+        Account savings = new Account(0, user, generateIban(), AccountType.SAVINGS,
                 BigDecimal.ZERO, absoluteTransferLimit, dailyTransferLimit, AccountStatus.ACTIVE, LocalDateTime.now());
         accountRepository.save(checking);
         accountRepository.save(savings);
         return List.of(checking, savings);
     }
 
-    public List<Account> getAll(Integer userId, AccountType type, AccountStatus status) {
-        return accountRepository.findByFilters(userId, type, status);
+    public Page<Account> getAll(Integer userId, AccountType type, AccountStatus status, String iban, Pageable pageable) {
+        return accountRepository.findAll(buildSpec(userId, type, status, iban), pageable);
+    }
+
+    private Specification<Account> buildSpec(Integer userId, AccountType type, AccountStatus status, String iban) {
+        return (root, query, cb) -> {
+            List<Predicate> predicates = new ArrayList<>();
+            if (userId != null)
+                predicates.add(cb.equal(root.get("user").get("id"), userId));
+            if (type != null)
+                predicates.add(cb.equal(root.get("type"), type));
+            if (status != null)
+                predicates.add(cb.equal(root.get("status"), status));
+            if (iban != null)
+                predicates.add(cb.equal(root.get("iban"), iban));
+            return cb.and(predicates.toArray(new Predicate[0]));
+        };
     }
 
     public Account getByIban(String iban) {
-        Account account = accountRepository.findByIban(iban);
-        if (account == null) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Account not found: " + iban);
-        return account;
+        return accountRepository.findByIban(iban)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Account not found: " + iban));
     }
 
     public List<Account> getByUserId(int userId) {
         return accountRepository.findByUser_Id(userId);
     }
 
-    public List<Account> getByUserIds(List<Integer> userIds) {
-        if (userIds.isEmpty()) return List.of();
-        return accountRepository.findByUser_IdIn(userIds);
+    public Page<Account> getByUserIds(List<Integer> userIds, Pageable pageable) {
+        if (userIds.isEmpty()) return Page.empty(pageable);
+        return accountRepository.findByUser_IdIn(userIds, pageable);
     }
 
-    public Account updateLimits(String iban, BigDecimal absoluteTransferLimit, BigDecimal dailyTransferLimit) {
+    public Account updateAccount(String iban, BigDecimal absoluteTransferLimit, BigDecimal dailyTransferLimit, AccountStatus status) {
         if (absoluteTransferLimit != null && absoluteTransferLimit.compareTo(BigDecimal.ZERO) < 0)
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "absoluteTransferLimit must be >= 0");
         if (dailyTransferLimit != null && dailyTransferLimit.compareTo(BigDecimal.ZERO) < 0)
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "dailyTransferLimit must be >= 0");
 
         Account account = getByIban(iban);
+        if (status == AccountStatus.CLOSED && account.getBalance().compareTo(BigDecimal.ZERO) != 0)
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Cannot close account with non-zero balance");
         if (absoluteTransferLimit != null) account.setAbsoluteTransferLimit(absoluteTransferLimit);
         if (dailyTransferLimit != null) account.setDailyTransferLimit(dailyTransferLimit);
+        if (status != null) account.setStatus(status);
         return accountRepository.save(account);
     }
 
-    private String generateUniqueIban() {
-        for (int attempt = 0; attempt < MAX_IBAN_ATTEMPTS; attempt++) {
-            long num = ibanNumberSource.getAsLong();
-            String iban = "NL" + String.format("%02d", (num % 99) + 1) + "BANK" + String.format("%010d", num);
-            if (accountRepository.findByIban(iban) == null) return iban;
-        }
-        throw new IllegalStateException("Could not generate unique IBAN after " + MAX_IBAN_ATTEMPTS + " attempts");
+    private String generateIban() {
+        long num = ibanNumberSource.getAsLong();
+        return "NL" + String.format("%02d", (num % 99) + 1) + "BANK" + String.format("%010d", num);
     }
 }
