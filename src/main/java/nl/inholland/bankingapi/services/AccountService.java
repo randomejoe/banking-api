@@ -5,15 +5,14 @@ import nl.inholland.bankingapi.entities.Account;
 import nl.inholland.bankingapi.entities.User;
 import nl.inholland.bankingapi.entities.enums.AccountStatus;
 import nl.inholland.bankingapi.entities.enums.AccountType;
+import nl.inholland.bankingapi.exceptions.ResourceNotFoundException;
 import nl.inholland.bankingapi.repositories.AccountRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.server.ResponseStatusException;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -41,13 +40,14 @@ public class AccountService {
     @Transactional
     public List<Account> createAccountsForUser(User user, BigDecimal absoluteTransferLimit, BigDecimal dailyTransferLimit) {
         if (absoluteTransferLimit == null)
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "absoluteTransferLimit is required");
+            throw new IllegalArgumentException("absoluteTransferLimit is required");
         if (dailyTransferLimit == null)
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "dailyTransferLimit is required");
+            throw new IllegalArgumentException("dailyTransferLimit is required");
         if (absoluteTransferLimit.compareTo(BigDecimal.ZERO) < 0)
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "absoluteTransferLimit must be >= 0");
+            throw new IllegalArgumentException("absoluteTransferLimit must be >= 0");
         if (dailyTransferLimit.compareTo(BigDecimal.ZERO) < 0)
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "dailyTransferLimit must be >= 0");
+            throw new IllegalArgumentException("dailyTransferLimit must be >= 0");
+
         Account checking = new Account(0, user, generateIban(), AccountType.CHECKING,
                 BigDecimal.ZERO, absoluteTransferLimit, dailyTransferLimit, AccountStatus.ACTIVE, LocalDateTime.now());
         Account savings = new Account(0, user, generateIban(), AccountType.SAVINGS,
@@ -78,7 +78,7 @@ public class AccountService {
 
     public Account getByIban(String iban) {
         return accountRepository.findByIban(iban)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Account not found: " + iban));
+                .orElseThrow(() -> new ResourceNotFoundException("Account not found: " + iban));
     }
 
     public List<Account> getByUserId(int userId) {
@@ -92,13 +92,13 @@ public class AccountService {
 
     public Account updateAccount(String iban, BigDecimal absoluteTransferLimit, BigDecimal dailyTransferLimit, AccountStatus status) {
         if (absoluteTransferLimit != null && absoluteTransferLimit.compareTo(BigDecimal.ZERO) < 0)
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "absoluteTransferLimit must be >= 0");
+            throw new IllegalArgumentException("absoluteTransferLimit must be >= 0");
         if (dailyTransferLimit != null && dailyTransferLimit.compareTo(BigDecimal.ZERO) < 0)
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "dailyTransferLimit must be >= 0");
+            throw new IllegalArgumentException("dailyTransferLimit must be >= 0");
 
         Account account = getByIban(iban);
         if (status == AccountStatus.CLOSED && account.getBalance().compareTo(BigDecimal.ZERO) != 0)
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Cannot close account with non-zero balance");
+            throw new IllegalArgumentException("Cannot close account with non-zero balance");
         if (absoluteTransferLimit != null) account.setAbsoluteTransferLimit(absoluteTransferLimit);
         if (dailyTransferLimit != null) account.setDailyTransferLimit(dailyTransferLimit);
         if (status != null) account.setStatus(status);

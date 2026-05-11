@@ -5,7 +5,7 @@ import nl.inholland.bankingapi.entities.Transaction;
 import nl.inholland.bankingapi.entities.User;
 import nl.inholland.bankingapi.entities.enums.AccountStatus;
 import nl.inholland.bankingapi.entities.enums.TransactionType;
-import nl.inholland.bankingapi.exceptions.TransactionException;
+import nl.inholland.bankingapi.exceptions.ResourceNotFoundException;
 import nl.inholland.bankingapi.repositories.AccountRepository;
 import nl.inholland.bankingapi.repositories.TransactionRepository;
 import org.springframework.stereotype.Service;
@@ -53,7 +53,7 @@ public class TransactionService {
                               BigDecimal amount, TransactionType type, String description) {
 
         if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
-            throw new TransactionException("Amount must be greater than zero");
+            throw new IllegalArgumentException("Amount must be greater than zero");
         }
 
         if (type == TransactionType.TRANSFER) {
@@ -73,7 +73,7 @@ public class TransactionService {
             debit(fromAccount, amount);
 
         } else {
-            throw new TransactionException("Unsupported transaction type: " + type);
+            throw new IllegalArgumentException("Unsupported transaction type: " + type);
         }
 
         Transaction transaction = new Transaction(
@@ -81,29 +81,25 @@ public class TransactionService {
         return transactionRepository.save(transaction);
     }
 
-    // ── private helpers ───────────────────────────────────────────────────────
-
     private Account requireActiveAccount(String iban, String label) {
         if (iban == null || iban.isBlank()) {
-            throw new TransactionException(label + " IBAN is required");
+            throw new IllegalArgumentException(label + " IBAN is required");
         }
         Account account = accountRepository.findByIban(iban)
-                .orElseThrow(() -> new TransactionException(label + " account not found: " + iban));
+                .orElseThrow(() -> new ResourceNotFoundException(label + " account not found: " + iban));
         if (account.getStatus() != AccountStatus.ACTIVE) {
-            throw new TransactionException(label + " account is not active: " + iban);
+            throw new IllegalArgumentException(label + " account is not active: " + iban);
         }
         return account;
     }
 
     private void validateTransferLimits(Account from, BigDecimal amount) {
-        // absoluteTransferLimit: the balance must not drop below this value after the transfer
         BigDecimal balanceAfter = from.getBalance().subtract(amount);
         if (balanceAfter.compareTo(from.getAbsoluteTransferLimit()) < 0) {
-            throw new TransactionException(
+            throw new IllegalArgumentException(
                     "Transfer would breach the absolute transfer limit for account: " + from.getIban());
         }
 
-        // dailyTransferLimit: total outgoing transfers today must not exceed this value
         LocalDateTime startOfDay = LocalDate.now().atStartOfDay();
         BigDecimal transferredToday = transactionRepository
                 .findByFromIbanAndTypeAndTimestampGreaterThanEqual(from.getIban(), TransactionType.TRANSFER, startOfDay)
@@ -111,7 +107,7 @@ public class TransactionService {
                 .map(Transaction::getAmount)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
         if (transferredToday.add(amount).compareTo(from.getDailyTransferLimit()) > 0) {
-            throw new TransactionException(
+            throw new IllegalArgumentException(
                     "Transfer would exceed the daily transfer limit for account: " + from.getIban());
         }
     }
