@@ -1,48 +1,45 @@
 package nl.inholland.bankingapi.controllers;
 
 import nl.inholland.bankingapi.dtos.TransactionCreateRequest;
+import nl.inholland.bankingapi.dtos.TransactionFilterParams;
 import nl.inholland.bankingapi.dtos.TransactionResponse;
-import nl.inholland.bankingapi.entities.Transaction;
-import nl.inholland.bankingapi.entities.User;
-import nl.inholland.bankingapi.entities.enums.TransactionType;
 import nl.inholland.bankingapi.mappers.TransactionMapper;
-import nl.inholland.bankingapi.services.CustomerService;
 import nl.inholland.bankingapi.services.TransactionService;
 import jakarta.validation.Valid;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
-
-import java.math.BigDecimal;
-import java.util.List;
 
 @RestController
 @RequestMapping("transactions")
 public class TransactionController {
 
-    final private TransactionService transactionService;
-    final private CustomerService customerService;
-    final private TransactionMapper transactionMapper;
+    private final TransactionService transactionService;
+    private final TransactionMapper transactionMapper;
 
-    public TransactionController(TransactionService transactionService, CustomerService customerService, TransactionMapper transactionMapper) {
+    public TransactionController(TransactionService transactionService,
+                                 TransactionMapper transactionMapper) {
         this.transactionService = transactionService;
-        this.customerService = customerService;
         this.transactionMapper = transactionMapper;
     }
 
     @GetMapping("")
-    List<TransactionResponse> getAll(@RequestParam(required = false) String iban,
-                                     @RequestParam(required = false) TransactionType type,
-                                     @RequestParam(required = false) BigDecimal minAmount,
-                                     @RequestParam(required = false) BigDecimal maxAmount) {
-        return transactionService.getAll(iban, type, minAmount, maxAmount).stream()
-                .map(transactionMapper::toResponse)
-                .toList();
+    Page<TransactionResponse> getAll(@ModelAttribute TransactionFilterParams filters,
+                                     @PageableDefault(size = 20) Pageable pageable) {
+        return transactionService.getAll(filters, pageable)
+                .map(transactionMapper::toResponse);
+    }
+
+    @GetMapping("/{id}")
+    TransactionResponse getById(@PathVariable int id) {
+        return transactionMapper.toResponse(transactionService.getById(id));
     }
 
     @PostMapping("")
+    @ResponseStatus(HttpStatus.CREATED)
     TransactionResponse create(@RequestBody @Valid TransactionCreateRequest request) {
-        User initiatedBy = customerService.getUserById(request.initiatedByUserId());
-        TransactionType type = TransactionType.valueOf(request.type());
-        Transaction transaction = transactionService.create(request.fromIban(), request.toIban(), initiatedBy, request.amount(), type, request.description());
-        return transactionMapper.toResponse(transaction);
+        return transactionMapper.toResponse(transactionService.create(request));
     }
 }

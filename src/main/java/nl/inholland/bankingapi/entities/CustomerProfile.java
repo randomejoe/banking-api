@@ -2,8 +2,19 @@ package nl.inholland.bankingapi.entities;
 
 import nl.inholland.bankingapi.entities.enums.CustomerStatus;
 import jakarta.persistence.*;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+import lombok.ToString;
 
 @Entity
+@Table(name = "customer_profile")
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@ToString(exclude = "user")
 public class CustomerProfile {
 
     @Id
@@ -23,30 +34,7 @@ public class CustomerProfile {
     @Column(nullable = false)
     private CustomerStatus status;
 
-    public CustomerProfile() {}
-
-    public CustomerProfile(int id, User user, String bsn, String phoneNumber, CustomerStatus status) {
-        this.id = id;
-        this.user = user;
-        this.bsn = bsn;
-        this.phoneNumber = phoneNumber;
-        this.status = status;
+    public int getUserId() {
+        return user.getId();
     }
-
-    public int getId() { return id; }
-    public void setId(int id) { this.id = id; }
-
-    public User getUser() { return user; }
-    public void setUser(User user) { this.user = user; }
-
-    public int getUserId() { return user.getId(); }
-
-    public String getBsn() { return bsn; }
-    public void setBsn(String bsn) { this.bsn = bsn; }
-
-    public String getPhoneNumber() { return phoneNumber; }
-    public void setPhoneNumber(String phoneNumber) { this.phoneNumber = phoneNumber; }
-
-    public CustomerStatus getStatus() { return status; }
-    public void setStatus(CustomerStatus status) { this.status = status; }
 }
