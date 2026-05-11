@@ -16,7 +16,7 @@ import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("auth")
-public class  AuthController {
+public class AuthController {
 
     final private AuthService authService;
     final private CustomerService customerService;
@@ -46,7 +46,6 @@ public class  AuthController {
     @PostMapping("/login")
     LoginResponse login(@RequestBody @Valid LoginRequest request) {
         User user = authService.login(request.email(), request.password());
-        if (user == null) return null;
         CustomerProfile profile = customerService.getProfileByUserId(user.getId());
         return customerMapper.toLogin(user, profile);
     }
@@ -54,7 +53,6 @@ public class  AuthController {
     @GetMapping("/me")
     CurrentUserResponse me(@RequestParam int userId) {
         User user = customerService.getUserById(userId);
-        if (user == null) return null;
         CustomerProfile profile = customerService.getProfileByUserId(userId);
         return customerMapper.toCurrentUser(user, profile);
     }

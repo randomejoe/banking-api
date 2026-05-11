@@ -50,7 +50,6 @@ public class CustomerController {
     @GetMapping("/{id}")
     CustomerDetailResponse getById(@PathVariable int id) {
         User user = customerService.getUserById(id);
-        if (user == null) return null;
         CustomerProfile profile = customerService.getProfileByUserId(id);
         List<Account> accounts = accountService.getByUserId(id);
         return customerMapper.toDetail(user, profile, accounts);

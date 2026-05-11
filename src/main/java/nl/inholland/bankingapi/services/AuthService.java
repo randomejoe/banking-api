@@ -24,6 +24,9 @@ public class AuthService {
 
     @Transactional
     public User register(String email, String password, String firstName, String lastName, String bsn, String phoneNumber) {
+        if (userRepository.findByEmail(email).isPresent()) {
+            throw new IllegalArgumentException("Email already exists");
+        }
         User user = new User(0, email, password, firstName, lastName, UserRole.CUSTOMER, LocalDateTime.now());
         userRepository.save(user);
         CustomerProfile profile = new CustomerProfile(0, user, bsn, phoneNumber, CustomerStatus.PENDING);
@@ -32,6 +35,10 @@ public class AuthService {
     }
 
     public User login(String email, String password) {
-        return userRepository.findByEmailAndPasswordHash(email, password);
+        User user = userRepository.findByEmailAndPasswordHash(email, password);
+        if (user == null) {
+            throw new IllegalArgumentException("Invalid email or password");
+        }
+        return user;
     }
 }
