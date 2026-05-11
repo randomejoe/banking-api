@@ -6,6 +6,8 @@ import nl.inholland.bankingapi.entities.Transaction;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 
+
+//using mapstruct instead now
 @Mapper(componentModel = "spring")
 public interface TransactionMapper {
 

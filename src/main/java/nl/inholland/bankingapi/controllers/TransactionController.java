@@ -32,6 +32,7 @@ public class TransactionController {
                 .map(transactionMapper::toResponse);
     }
 
+    //added missing get
     @GetMapping("/{id}")
     TransactionResponse getById(@PathVariable int id) {
         return transactionMapper.toResponse(transactionService.getById(id));
