@@ -3,6 +3,12 @@ package nl.inholland.bankingapi.entities;
 import nl.inholland.bankingapi.entities.enums.AccountStatus;
 import nl.inholland.bankingapi.entities.enums.AccountType;
 import jakarta.persistence.*;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+import lombok.ToString;
+
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
@@ -12,6 +18,11 @@ import java.time.LocalDateTime;
         @Index(name = "idx_account_type",    columnList = "type"),
         @Index(name = "idx_account_status",  columnList = "status")
 })
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@ToString(exclude = "user")
 public class Account {
 
     @Id
@@ -45,46 +56,7 @@ public class Account {
     @Column(nullable = false)
     private LocalDateTime createdAt;
 
-    public Account() {}
-
-    public Account(int id, User user, String iban, AccountType type, BigDecimal balance, BigDecimal absoluteTransferLimit, BigDecimal dailyTransferLimit, AccountStatus status, LocalDateTime createdAt) {
-        this.id = id;
-        this.user = user;
-        this.iban = iban;
-        this.type = type;
-        this.balance = balance;
-        this.absoluteTransferLimit = absoluteTransferLimit;
-        this.dailyTransferLimit = dailyTransferLimit;
-        this.status = status;
-        this.createdAt = createdAt;
+    public int getUserId() {
+        return user.getId();
     }
-
-    public int getId() { return id; }
-    public void setId(int id) { this.id = id; }
-
-    public User getUser() { return user; }
-    public void setUser(User user) { this.user = user; }
-
-    public int getUserId() { return user.getId(); }
-
-    public String getIban() { return iban; }
-    public void setIban(String iban) { this.iban = iban; }
-
-    public AccountType getType() { return type; }
-    public void setType(AccountType type) { this.type = type; }
-
-    public BigDecimal getBalance() { return balance; }
-    public void setBalance(BigDecimal balance) { this.balance = balance; }
-
-    public BigDecimal getAbsoluteTransferLimit() { return absoluteTransferLimit; }
-    public void setAbsoluteTransferLimit(BigDecimal absoluteTransferLimit) { this.absoluteTransferLimit = absoluteTransferLimit; }
-
-    public BigDecimal getDailyTransferLimit() { return dailyTransferLimit; }
-    public void setDailyTransferLimit(BigDecimal dailyTransferLimit) { this.dailyTransferLimit = dailyTransferLimit; }
-
-    public AccountStatus getStatus() { return status; }
-    public void setStatus(AccountStatus status) { this.status = status; }
-
-    public LocalDateTime getCreatedAt() { return createdAt; }
-    public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
 }

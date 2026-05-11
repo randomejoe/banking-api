@@ -42,8 +42,13 @@ public class GlobalExceptionHandler {
         return buildErrorResponse(HttpStatus.BAD_REQUEST, "Malformed request body or invalid field value");
     }
 
+    @ExceptionHandler(BadRequestException.class)
+    public ResponseEntity<Map<String, Object>> handleBadRequest(BadRequestException ex) {
+        return buildErrorResponse(HttpStatus.BAD_REQUEST, ex.getMessage());
+    }
+
     @ExceptionHandler({IllegalArgumentException.class, MissingServletRequestParameterException.class})
-    public ResponseEntity<Map<String, Object>> handleBadRequest(Exception ex) {
+    public ResponseEntity<Map<String, Object>> handleIllegalArgument(Exception ex) {
         return buildErrorResponse(HttpStatus.BAD_REQUEST, ex.getMessage());
     }
 

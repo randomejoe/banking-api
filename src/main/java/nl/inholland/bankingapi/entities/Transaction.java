@@ -2,20 +2,38 @@ package nl.inholland.bankingapi.entities;
 
 import nl.inholland.bankingapi.entities.enums.TransactionType;
 import jakarta.persistence.*;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+import lombok.ToString;
+
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Entity
+@Table(name = "transaction", indexes = {
+        @Index(name = "idx_transaction_from_iban",    columnList = "from_iban"),
+        @Index(name = "idx_transaction_to_iban",      columnList = "to_iban"),
+        @Index(name = "idx_transaction_type",         columnList = "type"),
+        @Index(name = "idx_transaction_timestamp",    columnList = "timestamp"),
+        @Index(name = "idx_transaction_initiated_by", columnList = "initiated_by_user_id")
+})
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@ToString(exclude = "initiatedBy")
 public class Transaction {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private int id;
 
-    @Column(name = "from_iban", nullable = true)
+    @Column(name = "from_iban")
     private String fromIban;
 
-    @Column(name = "to_iban", nullable = true)
+    @Column(name = "to_iban")
     private String toIban;
 
     @ManyToOne(optional = false)
@@ -34,42 +52,7 @@ public class Transaction {
     @Column(nullable = false)
     private LocalDateTime timestamp;
 
-    public Transaction() {}
-
-    public Transaction(int id, String fromIban, String toIban, User initiatedBy, BigDecimal amount, TransactionType type, String description, LocalDateTime timestamp) {
-        this.id = id;
-        this.fromIban = fromIban;
-        this.toIban = toIban;
-        this.initiatedBy = initiatedBy;
-        this.amount = amount;
-        this.type = type;
-        this.description = description;
-        this.timestamp = timestamp;
+    public int getInitiatedByUserId() {
+        return initiatedBy.getId();
     }
-
-    public int getId() { return id; }
-    public void setId(int id) { this.id = id; }
-
-    public String getFromIban() { return fromIban; }
-    public void setFromIban(String fromIban) { this.fromIban = fromIban; }
-
-    public String getToIban() { return toIban; }
-    public void setToIban(String toIban) { this.toIban = toIban; }
-
-    public User getInitiatedBy() { return initiatedBy; }
-    public void setInitiatedBy(User initiatedBy) { this.initiatedBy = initiatedBy; }
-
-    public int getInitiatedByUserId() { return initiatedBy.getId(); }
-
-    public BigDecimal getAmount() { return amount; }
-    public void setAmount(BigDecimal amount) { this.amount = amount; }
-
-    public TransactionType getType() { return type; }
-    public void setType(TransactionType type) { this.type = type; }
-
-    public String getDescription() { return description; }
-    public void setDescription(String description) { this.description = description; }
-
-    public LocalDateTime getTimestamp() { return timestamp; }
-    public void setTimestamp(LocalDateTime timestamp) { this.timestamp = timestamp; }
 }
