@@ -1,10 +1,10 @@
-package com.example.demo;
+package nl.inholland.bankingapi;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 
 @SpringBootTest
-class DemoApplicationTests {
+class BankingApiApplicationTests {
 
 	@Test
 	void contextLoads() {
