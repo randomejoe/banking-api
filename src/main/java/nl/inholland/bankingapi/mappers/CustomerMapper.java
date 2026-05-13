@@ -29,8 +29,8 @@ public interface CustomerMapper {
 
     CustomerProfileResponse toProfile(CustomerProfile profile);
 
-    @Mapping(target = "accessToken", expression = "java(\"demo-token-\" + user.getId())")
+    @Mapping(source = "accessToken", target = "accessToken")
     @Mapping(target = "tokenType", constant = "Bearer")
     @Mapping(target = "expiresIn", constant = "3600")
-    LoginResponse toLogin(User user, CustomerProfile profile);
+    LoginResponse toLogin(User user, CustomerProfile profile, String accessToken);
 }

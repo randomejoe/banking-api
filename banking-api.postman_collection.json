@@ -9,6 +9,11 @@
       "key": "baseUrl",
       "value": "http://localhost:8080",
       "type": "string"
+    },
+    {
+      "key": "accessToken",
+      "value": "",
+      "type": "string"
     }
   ],
   "item": [
@@ -24,8 +29,9 @@
             "body": {
               "mode": "raw",
               "options": { "raw": { "language": "json" } },
-              "raw": "{\n  \"email\": \"joe@example.com\",\n  \"password\": \"secret123\",\n  \"firstName\": \"Joe\",\n  \"lastName\": \"Davtian\",\n  \"bsn\": \"123456789\",\n  \"phoneNumber\": \"0612345678\"\n}"
-            }
+              "raw": "{\n  \"email\": \"joe@example.com\",\n  \"password\": \"Secret123!\",\n  \"firstName\": \"Joe\",\n  \"lastName\": \"Davtian\",\n  \"bsn\": \"123456789\",\n  \"phoneNumber\": \"0612345678\"\n}"
+            },
+            "description": "Registration password must be at least 8 characters and include uppercase, lowercase, and special characters."
           }
         },
         {
@@ -37,19 +43,32 @@
             "body": {
               "mode": "raw",
               "options": { "raw": { "language": "json" } },
-              "raw": "{\n  \"email\": \"joe@example.com\",\n  \"password\": \"secret123\"\n}"
+              "raw": "{\n  \"email\": \"alice@example.nl\",\n  \"password\": \"Pass123!\"\n}"
+            },
+            "description": "Seeded demo credentials: admin@bank.nl / Admin123!, alice@example.nl / Pass123!, bob@example.nl / Pass123!, charlie@example.nl / Charlie123!"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const response = pm.response.json();",
+                  "pm.collectionVariables.set(\"accessToken\", response.accessToken);"
+                ]
+              }
             }
-          }
+          ]
         },
         {
           "name": "Current User (me)",
           "request": {
             "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
             "url": {
-              "raw": "{{baseUrl}}/auth/me?userId=1",
+              "raw": "{{baseUrl}}/auth/me",
               "host": ["{{baseUrl}}"],
-              "path": ["auth", "me"],
-              "query": [{ "key": "userId", "value": "1" }]
+              "path": ["auth", "me"]
             }
           }
         }
@@ -62,6 +81,7 @@
           "name": "Get All Customers",
           "request": {
             "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
             "url": {
               "raw": "{{baseUrl}}/customers?status=ACTIVE&search=",
               "host": ["{{baseUrl}}"],
@@ -77,6 +97,7 @@
           "name": "Get Customer by ID",
           "request": {
             "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
             "url": {
               "raw": "{{baseUrl}}/customers/1",
               "host": ["{{baseUrl}}"],
@@ -88,7 +109,10 @@
           "name": "Update Customer",
           "request": {
             "method": "PATCH",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
             "url": {
               "raw": "{{baseUrl}}/customers/1",
               "host": ["{{baseUrl}}"],
@@ -105,6 +129,7 @@
           "name": "Get Customer Transactions",
           "request": {
             "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
             "url": {
               "raw": "{{baseUrl}}/customers/1/transactions?type=&minAmount=&maxAmount=",
               "host": ["{{baseUrl}}"],
@@ -126,6 +151,7 @@
           "name": "Get All Accounts",
           "request": {
             "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
             "url": {
               "raw": "{{baseUrl}}/accounts?userId=&type=&status=&iban=&name=",
               "host": ["{{baseUrl}}"],
@@ -144,7 +170,10 @@
           "name": "Update Account",
           "request": {
             "method": "PATCH",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
             "url": {
               "raw": "{{baseUrl}}/accounts/NL01BANK1234567890",
               "host": ["{{baseUrl}}"],
@@ -167,6 +196,7 @@
           "name": "Get All Transactions",
           "request": {
             "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
             "url": {
               "raw": "{{baseUrl}}/transactions?iban=&type=&minAmount=&maxAmount=",
               "host": ["{{baseUrl}}"],
@@ -184,7 +214,10 @@
           "name": "Create Transaction",
           "request": {
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
             "url": {
               "raw": "{{baseUrl}}/transactions",
               "host": ["{{baseUrl}}"],
@@ -193,7 +226,7 @@
             "body": {
               "mode": "raw",
               "options": { "raw": { "language": "json" } },
-              "raw": "{\n  \"fromIban\": \"NL01BANK1234567890\",\n  \"toIban\": \"NL02BANK9876543210\",\n  \"initiatedByUserId\": 1,\n  \"amount\": 100.00,\n  \"type\": \"TRANSFER\",\n  \"description\": \"Rent payment\"\n}"
+              "raw": "{\n  \"fromIban\": \"NL01BANK0000000001\",\n  \"toIban\": \"NL01BANK0000000003\",\n  \"amount\": 100.00,\n  \"type\": \"TRANSFER\",\n  \"description\": \"Rent payment\"\n}"
             }
           }
         }

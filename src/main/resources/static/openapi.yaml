@@ -55,12 +55,8 @@ paths:
     get:
       tags: [Auth]
       summary: Get the currently authenticated user
-      parameters:
-        - name: userId
-          in: query
-          required: true
-          schema:
-            type: integer
+      security:
+        - bearerAuth: []
       responses:
         '200':
           description: Current user details
@@ -73,6 +69,8 @@ paths:
     get:
       tags: [Accounts]
       summary: List accounts (paginated)
+      security:
+        - bearerAuth: []
       parameters:
         - name: userId
           in: query
@@ -115,6 +113,8 @@ paths:
       tags: [Accounts]
       summary: Update account limits or status
       description: At least one field must be provided. Setting status to CLOSED requires a zero balance.
+      security:
+        - bearerAuth: []
       parameters:
         - name: iban
           in: path
@@ -146,6 +146,8 @@ paths:
     get:
       tags: [Customers]
       summary: List all customers
+      security:
+        - bearerAuth: []
       parameters:
         - name: status
           in: query
@@ -171,6 +173,8 @@ paths:
     get:
       tags: [Customers]
       summary: Get customer details by ID
+      security:
+        - bearerAuth: []
       parameters:
         - name: id
           in: path
@@ -188,6 +192,8 @@ paths:
     patch:
       tags: [Customers]
       summary: Update customer profile
+      security:
+        - bearerAuth: []
       parameters:
         - name: id
           in: path
@@ -212,6 +218,8 @@ paths:
     get:
       tags: [Customers]
       summary: Get transactions for a customer
+      security:
+        - bearerAuth: []
       parameters:
         - name: id
           in: path
@@ -247,6 +255,8 @@ paths:
     get:
       tags: [Transactions]
       summary: List all transactions
+      security:
+        - bearerAuth: []
       parameters:
         - name: iban
           in: query
@@ -281,6 +291,8 @@ paths:
     post:
       tags: [Transactions]
       summary: Create a new transaction
+      security:
+        - bearerAuth: []
       requestBody:
         required: true
         content:
@@ -296,6 +308,12 @@ paths:
                 $ref: '#/components/schemas/TransactionResponse'
 
 components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
   schemas:
 
     # ── Enums ────────────────────────────────────────────────────────────────
@@ -391,7 +409,7 @@ components:
 
     TransactionCreateRequest:
       type: object
-      required: [initiatedByUserId, amount, type]
+      required: [amount, type]
       properties:
         fromIban:
           type: string
@@ -399,6 +417,8 @@ components:
           type: string
         initiatedByUserId:
           type: integer
+          deprecated: true
+          description: Ignored for authenticated customer requests. The server uses the JWT principal as the authoritative initiator.
         amount:
           type: number
         type:
