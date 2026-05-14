@@ -12,7 +12,11 @@ import nl.inholland.bankingapi.mappers.UserMapper;
 import nl.inholland.bankingapi.services.AuthService;
 import nl.inholland.bankingapi.services.CustomerService;
 import jakarta.validation.Valid;
+import org.springframework.http.HttpStatus;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 
 @RestController
 @RequestMapping("auth")
@@ -47,13 +51,19 @@ public class AuthController {
     LoginResponse login(@RequestBody @Valid LoginRequest request) {
         User user = authService.login(request.email(), request.password());
         CustomerProfile profile = customerService.getProfileByUserId(user.getId());
-        return customerMapper.toLogin(user, profile);
+        String accessToken = authService.generateToken(user);
+        return customerMapper.toLogin(user, profile, accessToken);
     }
 
     @GetMapping("/me")
-    CurrentUserResponse me(@RequestParam int userId) {
-        User user = customerService.getUserById(userId);
-        CustomerProfile profile = customerService.getProfileByUserId(userId);
+    CurrentUserResponse me() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+
+        if (authentication == null || !(authentication.getPrincipal() instanceof User user)) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Not authenticated");
+        }
+
+        CustomerProfile profile = customerService.getProfileByUserId(user.getId());
         return customerMapper.toCurrentUser(user, profile);
     }
 }

@@ -24,6 +24,8 @@ import java.util.function.LongSupplier;
 @Service
 public class AccountService {
 
+    private static final int MAX_IBAN_GENERATION_ATTEMPTS = 100;
+
     private final AccountRepository accountRepository;
     private final LongSupplier ibanNumberSource;
 
@@ -106,7 +108,13 @@ public class AccountService {
     }
 
     private String generateIban() {
-        long num = ibanNumberSource.getAsLong();
-        return "NL" + String.format("%02d", (num % 99) + 1) + "BANK" + String.format("%010d", num);
+        for (int attempt = 0; attempt < MAX_IBAN_GENERATION_ATTEMPTS; attempt++) {
+            long num = ibanNumberSource.getAsLong();
+            String iban = "NL" + String.format("%02d", (num % 99) + 1) + "BANK" + String.format("%010d", num);
+            if (accountRepository.findByIban(iban).isEmpty()) {
+                return iban;
+            }
+        }
+        throw new IllegalStateException("Unable to generate a unique IBAN");
     }
 }

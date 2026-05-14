@@ -12,6 +12,7 @@ import nl.inholland.bankingapi.mappers.CustomerMapper;
 import nl.inholland.bankingapi.services.AccountService;
 import nl.inholland.bankingapi.services.CustomerService;
 import jakarta.validation.Valid;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -33,6 +34,7 @@ public class CustomerController {
     }
 
     @GetMapping("")
+    @PreAuthorize("hasRole('EMPLOYEE')")
     List<CustomerSummaryResponse> getAll(@RequestParam(required = false) CustomerStatus status,
                                          @RequestParam(required = false) String search) {
         return customerService.getAllCustomers(status, search).stream()
@@ -41,6 +43,7 @@ public class CustomerController {
     }
 
     @GetMapping("/{id}")
+    @PreAuthorize("hasRole('EMPLOYEE')")
     CustomerDetailResponse getById(@PathVariable int id) {
         User user = customerService.getUserById(id);
         CustomerProfile profile = customerService.getProfileByUserId(id);
@@ -49,6 +52,7 @@ public class CustomerController {
     }
 
     @PatchMapping("/{id}")
+    @PreAuthorize("hasRole('EMPLOYEE')")
     CustomerProfileResponse update(@PathVariable int id, @RequestBody @Valid CustomerUpdateRequest request) {
         CustomerStatus status = request.status() != null ? CustomerStatus.valueOf(request.status()) : null;
         CustomerProfile profile = customerService.updateCustomer(id, status, request.firstName(), request.lastName(), request.phoneNumber(), request.absoluteTransferLimit(), request.dailyTransferLimit());

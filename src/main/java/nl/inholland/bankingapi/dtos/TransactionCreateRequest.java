@@ -11,8 +11,6 @@ public record TransactionCreateRequest(
         String fromIban,
         String toIban,
 
-        @NotNull(message = "Initiated by user ID is required")
-        @Positive(message = "Initiated by user ID must be a positive number")
         Integer initiatedByUserId,
 
         @NotNull(message = "Amount is required")

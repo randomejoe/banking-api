@@ -8,14 +8,17 @@ import nl.inholland.bankingapi.entities.Transaction;
 import nl.inholland.bankingapi.entities.User;
 import nl.inholland.bankingapi.entities.enums.AccountStatus;
 import nl.inholland.bankingapi.entities.enums.TransactionType;
+import nl.inholland.bankingapi.entities.enums.UserRole;
 import nl.inholland.bankingapi.exceptions.BadRequestException;
 import nl.inholland.bankingapi.exceptions.ResourceNotFoundException;
 import nl.inholland.bankingapi.repositories.AccountRepository;
 import nl.inholland.bankingapi.repositories.TransactionRepository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -26,16 +29,13 @@ public class TransactionService {
 
     private final TransactionRepository transactionRepository;
     private final AccountRepository accountRepository;
-    private final CustomerService customerService;
     private final TransactionMapper transactionMapper;
 
     public TransactionService(TransactionRepository transactionRepository,
                               AccountRepository accountRepository,
-                              CustomerService customerService,
                               TransactionMapper transactionMapper) {
         this.transactionRepository = transactionRepository;
         this.accountRepository = accountRepository;
-        this.customerService = customerService;
         this.transactionMapper = transactionMapper;
     }
 
@@ -56,12 +56,7 @@ public class TransactionService {
     }
 
     @Transactional
-    public Transaction create(TransactionCreateRequest request) {
-        User initiatedBy = customerService.getUserById(request.initiatedByUserId());
-        if (initiatedBy == null) {
-            throw new ResourceNotFoundException("User not found: " + request.initiatedByUserId());
-        }
-
+    public Transaction create(TransactionCreateRequest request, User initiatedBy) {
         TransactionType type = request.type();
 
         if (type == TransactionType.TRANSFER) {
@@ -73,6 +68,7 @@ public class TransactionService {
             }
             Account fromAccount = requireActiveAccount(request.fromIban(), "Source");
             Account toAccount   = requireActiveAccount(request.toIban(),   "Destination");
+            requireSourceAccountOwner(fromAccount, initiatedBy);
             validateTransferLimits(fromAccount, request.amount());
             debit(fromAccount, request.amount());
             credit(toAccount, request.amount());
@@ -89,6 +85,7 @@ public class TransactionService {
                 throw new BadRequestException("WITHDRAWAL requires fromIban");
             }
             Account fromAccount = requireActiveAccount(request.fromIban(), "Source");
+            requireSourceAccountOwner(fromAccount, initiatedBy);
             validateTransferLimits(fromAccount, request.amount());
             debit(fromAccount, request.amount());
 
@@ -100,6 +97,16 @@ public class TransactionService {
         transaction.setInitiatedBy(initiatedBy);
         transaction.setTimestamp(LocalDateTime.now());
         return transactionRepository.save(transaction);
+    }
+
+    private void requireSourceAccountOwner(Account account, User initiatedBy) {
+        if (initiatedBy.getRole() == UserRole.EMPLOYEE) {
+            return;
+        }
+
+        if (account.getUser().getId() != initiatedBy.getId()) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Cannot use another customer's source account");
+        }
     }
 
     private Account requireActiveAccount(String iban, String label) {
