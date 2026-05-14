@@ -2,7 +2,9 @@ package nl.inholland.bankingapi.util;
 
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
+import jakarta.annotation.PostConstruct;
 import nl.inholland.bankingapi.entities.User;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import javax.crypto.SecretKey;
@@ -12,24 +14,34 @@ import java.util.Date;
 @Component
 public class JwtUtil {
 
-    private static final String SECRET = "qaehstlGw6MHXMUokFIRHoULiKi5wRP2jsT8K5uLs7Z";
-    private static final SecretKey SECRET_KEY = Keys.hmacShaKeyFor(SECRET.getBytes(StandardCharsets.UTF_8));
-    private static final long EXPIRATION_MS = 1000 * 60 * 60;
+    @Value("${jwt.secret}")
+    private String secret;
+
+    @Value("${jwt.expiration-ms}")
+    private long expirationMs;
+
+    private SecretKey secretKey;
+
     private static final String BEARER_PREFIX = "Bearer ";
+
+    @PostConstruct
+    private void init() {
+        this.secretKey = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
+    }
 
     public String generateToken(User user) {
         return Jwts.builder()
                 .subject(user.getEmail())
                 .issuedAt(new Date())
-                .expiration(new Date(System.currentTimeMillis() + EXPIRATION_MS))
-                .signWith(SECRET_KEY)
+                .expiration(new Date(System.currentTimeMillis() + expirationMs))
+                .signWith(secretKey)
                 .compact();
     }
 
     public String extractSubject(String token) {
         String jwt = stripBearerPrefix(token);
         return Jwts.parser()
-                .verifyWith(SECRET_KEY)
+                .verifyWith(secretKey)
                 .build()
                 .parseSignedClaims(jwt)
                 .getPayload()
