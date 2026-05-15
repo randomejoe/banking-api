@@ -4,6 +4,7 @@ import nl.inholland.bankingapi.dtos.CurrentUserResponse;
 import nl.inholland.bankingapi.dtos.LoginRequest;
 import nl.inholland.bankingapi.dtos.LoginResponse;
 import nl.inholland.bankingapi.dtos.RegisterRequest;
+import nl.inholland.bankingapi.dtos.TokenResponse;
 import nl.inholland.bankingapi.dtos.UserResponse;
 import nl.inholland.bankingapi.entities.CustomerProfile;
 import nl.inholland.bankingapi.entities.User;
@@ -36,14 +37,7 @@ public class AuthController {
 
     @PostMapping("/register")
     UserResponse register(@RequestBody @Valid RegisterRequest request) {
-        User user = authService.register(
-                request.email(),
-                request.password(),
-                request.firstName(),
-                request.lastName(),
-                request.bsn(),
-                request.phoneNumber()
-        );
+        User user = authService.register(request);
         return userMapper.toResponse(user);
     }
 
@@ -52,7 +46,10 @@ public class AuthController {
         User user = authService.login(request.email(), request.password());
         CustomerProfile profile = customerService.getProfileByUserId(user.getId());
         String accessToken = authService.generateToken(user);
-        return customerMapper.toLogin(user, profile, accessToken);
+        long expirationSeconds = authService.getTokenExpirationMs() / 1000;
+        TokenResponse token = new TokenResponse(accessToken, expirationSeconds, "Bearer");
+        CurrentUserResponse userInfo = customerMapper.toCurrentUser(user, profile);
+        return new LoginResponse(token, userInfo);
     }
 
     @GetMapping("/me")

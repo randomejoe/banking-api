@@ -4,7 +4,6 @@ import nl.inholland.bankingapi.dtos.CurrentUserResponse;
 import nl.inholland.bankingapi.dtos.CustomerDetailResponse;
 import nl.inholland.bankingapi.dtos.CustomerProfileResponse;
 import nl.inholland.bankingapi.dtos.CustomerSummaryResponse;
-import nl.inholland.bankingapi.dtos.LoginResponse;
 import nl.inholland.bankingapi.entities.Account;
 import nl.inholland.bankingapi.entities.CustomerProfile;
 import nl.inholland.bankingapi.entities.User;
@@ -28,9 +27,4 @@ public interface CustomerMapper {
     CurrentUserResponse toCurrentUser(User user, CustomerProfile profile);
 
     CustomerProfileResponse toProfile(CustomerProfile profile);
-
-    @Mapping(source = "accessToken", target = "accessToken")
-    @Mapping(target = "tokenType", constant = "Bearer")
-    @Mapping(target = "expiresIn", constant = "3600")
-    LoginResponse toLogin(User user, CustomerProfile profile, String accessToken);
 }
