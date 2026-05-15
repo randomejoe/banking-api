@@ -1,5 +1,6 @@
 package nl.inholland.bankingapi.services;
 
+import nl.inholland.bankingapi.dtos.RegisterRequest;
 import nl.inholland.bankingapi.entities.CustomerProfile;
 import nl.inholland.bankingapi.entities.User;
 import nl.inholland.bankingapi.entities.enums.CustomerStatus;
@@ -36,14 +37,14 @@ public class AuthService {
     }
 
     @Transactional
-    public User register(String email, String password, String firstName, String lastName, String bsn, String phoneNumber) {
-        if (userRepository.findByEmail(email).isPresent()) {
+    public User register(RegisterRequest request) {
+        if (userRepository.findByEmail(request.email()).isPresent()) {
             throw new IllegalArgumentException("Email already exists");
         }
-        String passwordHash = passwordEncoder.encode(password);
-        User user = new User(0, email, passwordHash, firstName, lastName, UserRole.CUSTOMER, LocalDateTime.now());
+        String passwordHash = passwordEncoder.encode(request.password());
+        User user = new User(0, request.email(), passwordHash, request.firstName(), request.lastName(), UserRole.CUSTOMER, LocalDateTime.now());
         userRepository.save(user);
-        CustomerProfile profile = new CustomerProfile(0, user, bsn, phoneNumber, CustomerStatus.PENDING);
+        CustomerProfile profile = new CustomerProfile(0, user, request.bsn(), request.phoneNumber(), CustomerStatus.PENDING);
         customerProfileRepository.save(profile);
         return user;
     }
@@ -64,5 +65,9 @@ public class AuthService {
 
     public String generateToken(User user) {
         return jwtUtil.generateToken(user);
+    }
+
+    public long getTokenExpirationMs() {
+        return jwtUtil.getExpirationMs();
     }
 }

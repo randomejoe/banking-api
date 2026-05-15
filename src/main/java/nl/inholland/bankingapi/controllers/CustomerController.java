@@ -12,6 +12,9 @@ import nl.inholland.bankingapi.mappers.CustomerMapper;
 import nl.inholland.bankingapi.services.AccountService;
 import nl.inholland.bankingapi.services.CustomerService;
 import jakarta.validation.Valid;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
@@ -35,11 +38,11 @@ public class CustomerController {
 
     @GetMapping("")
     @PreAuthorize("hasRole('EMPLOYEE')")
-    List<CustomerSummaryResponse> getAll(@RequestParam(required = false) CustomerStatus status,
-                                         @RequestParam(required = false) String search) {
-        return customerService.getAllCustomers(status, search).stream()
-                .map(user -> customerMapper.toSummary(user, customerService.getProfileByUserId(user.getId())))
-                .toList();
+    Page<CustomerSummaryResponse> getAll(@RequestParam(required = false) CustomerStatus status,
+                                         @RequestParam(required = false) String search,
+                                         @PageableDefault(size = 20) Pageable pageable) {
+        return customerService.getAllCustomers(status, search, pageable)
+                .map(user -> customerMapper.toSummary(user, customerService.getProfileByUserId(user.getId())));
     }
 
     @GetMapping("/{id}")
@@ -54,8 +57,7 @@ public class CustomerController {
     @PatchMapping("/{id}")
     @PreAuthorize("hasRole('EMPLOYEE')")
     CustomerProfileResponse update(@PathVariable int id, @RequestBody @Valid CustomerUpdateRequest request) {
-        CustomerStatus status = request.status() != null ? CustomerStatus.valueOf(request.status()) : null;
-        CustomerProfile profile = customerService.updateCustomer(id, status, request.firstName(), request.lastName(), request.phoneNumber(), request.absoluteTransferLimit(), request.dailyTransferLimit());
+        CustomerProfile profile = customerService.updateCustomer(id, request);
         return customerMapper.toProfile(profile);
     }
 }

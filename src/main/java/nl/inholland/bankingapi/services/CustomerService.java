@@ -8,6 +8,12 @@ import nl.inholland.bankingapi.repositories.UserRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import nl.inholland.bankingapi.dtos.CustomerUpdateRequest;
+
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+
 import java.math.BigDecimal;
 import java.util.List;
 
@@ -17,6 +23,12 @@ public class CustomerService {
     private final UserRepository userRepository;
     private final CustomerProfileRepository customerProfileRepository;
     private final AccountService accountService;
+
+    @Value("${banking.defaults.absolute-transfer-limit}")
+    private BigDecimal defaultAbsoluteTransferLimit;
+
+    @Value("${banking.defaults.daily-transfer-limit}")
+    private BigDecimal defaultDailyTransferLimit;
 
     public CustomerService(UserRepository userRepository, CustomerProfileRepository customerProfileRepository, AccountService accountService) {
         this.userRepository = userRepository;
@@ -32,35 +44,30 @@ public class CustomerService {
         return customerProfileRepository.findByUser_Id(userId);
     }
 
-    public List<User> getAllCustomers(CustomerStatus status, String search) {
-        List<User> users = (search != null)
-                ? userRepository.findByFirstNameContainingIgnoreCaseOrLastNameContainingIgnoreCaseOrEmailContainingIgnoreCase(search, search, search)
-                : userRepository.findAll();
+    public Page<User> getAllCustomers(CustomerStatus status, String search, Pageable pageable) {
+        return userRepository.findCustomers(status, search, pageable);
+    }
 
-        return users.stream()
-                .filter(user -> {
-                    CustomerProfile profile = customerProfileRepository.findByUser_Id(user.getId());
-                    if (profile == null) return false;
-                    return status == null || profile.getStatus() == status;
-                })
-                .toList();
+    public List<Integer> getCustomerIdsBySearch(String search) {
+        return userRepository.findCustomerIdsBySearch(search);
     }
 
     @Transactional
-    public CustomerProfile updateCustomer(int userId, CustomerStatus status, String firstName, String lastName, String phoneNumber, BigDecimal absoluteTransferLimit, BigDecimal dailyTransferLimit) {
+    public CustomerProfile updateCustomer(int userId, CustomerUpdateRequest request) {
         User user = getUserById(userId);
         CustomerProfile profile = getProfileByUserId(userId);
         if (user == null || profile == null) return null;
         CustomerStatus previousStatus = profile.getStatus();
-        if (firstName != null) user.setFirstName(firstName);
-        if (lastName != null) user.setLastName(lastName);
-        if (status != null) profile.setStatus(status);
-        if (phoneNumber != null) profile.setPhoneNumber(phoneNumber);
+        CustomerStatus newStatus = request.status() != null ? CustomerStatus.valueOf(request.status()) : null;
+        if (request.firstName() != null) user.setFirstName(request.firstName());
+        if (request.lastName() != null) user.setLastName(request.lastName());
+        if (newStatus != null) profile.setStatus(newStatus);
+        if (request.phoneNumber() != null) profile.setPhoneNumber(request.phoneNumber());
         userRepository.save(user);
         customerProfileRepository.save(profile);
-        if (status == CustomerStatus.ACTIVE && previousStatus != CustomerStatus.ACTIVE) {
-            BigDecimal absLimit = absoluteTransferLimit != null ? absoluteTransferLimit : new BigDecimal("1000.00");
-            BigDecimal dailyLimit = dailyTransferLimit != null ? dailyTransferLimit : new BigDecimal("500.00");
+        if (newStatus == CustomerStatus.ACTIVE && previousStatus != CustomerStatus.ACTIVE) {
+            BigDecimal absLimit = request.absoluteTransferLimit() != null ? request.absoluteTransferLimit() : defaultAbsoluteTransferLimit;
+            BigDecimal dailyLimit = request.dailyTransferLimit() != null ? request.dailyTransferLimit() : defaultDailyTransferLimit;
             accountService.createAccountsForUser(user, absLimit, dailyLimit);
         }
         return profile;
