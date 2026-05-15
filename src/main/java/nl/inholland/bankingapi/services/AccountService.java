@@ -1,6 +1,7 @@
 package nl.inholland.bankingapi.services;
 
 import jakarta.persistence.criteria.Predicate;
+import nl.inholland.bankingapi.dtos.AccountQuery;
 import nl.inholland.bankingapi.entities.Account;
 import nl.inholland.bankingapi.entities.User;
 import nl.inholland.bankingapi.entities.enums.AccountStatus;
@@ -22,7 +23,8 @@ import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.LongSupplier;
 
 @Service
-public class AccountService {
+public class
+AccountService {
 
     private static final int MAX_IBAN_GENERATION_ATTEMPTS = 100;
 
@@ -59,21 +61,21 @@ public class AccountService {
         return List.of(checking, savings);
     }
 
-    public Page<Account> getAll(Integer userId, AccountType type, AccountStatus status, String iban, Pageable pageable) {
-        return accountRepository.findAll(buildSpec(userId, type, status, iban), pageable);
+    public Page<Account> getAll(AccountQuery query, Pageable pageable) {
+        return accountRepository.findAll(buildSpec(query), pageable);
     }
 
-    private Specification<Account> buildSpec(Integer userId, AccountType type, AccountStatus status, String iban) {
-        return (root, query, cb) -> {
+    private Specification<Account> buildSpec(AccountQuery query) {
+        return (root, q, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
-            if (userId != null)
-                predicates.add(cb.equal(root.get("user").get("id"), userId));
-            if (type != null)
-                predicates.add(cb.equal(root.get("type"), type));
-            if (status != null)
-                predicates.add(cb.equal(root.get("status"), status));
-            if (iban != null)
-                predicates.add(cb.equal(root.get("iban"), iban));
+            if (query.getUserId() != null)
+                predicates.add(cb.equal(root.get("user").get("id"), query.getUserId()));
+            if (query.getType() != null)
+                predicates.add(cb.equal(root.get("type"), query.getType()));
+            if (query.getStatus() != null)
+                predicates.add(cb.equal(root.get("status"), query.getStatus()));
+            if (query.getIban() != null)
+                predicates.add(cb.equal(root.get("iban"), query.getIban()));
             return cb.and(predicates.toArray(new Predicate[0]));
         };
     }
