@@ -89,7 +89,7 @@ class AuthControllerFunctionalTest {
         request.put("password", "Password1!");
         request.put("firstName", "Alice");
         request.put("lastName", "Smith");
-        request.put("bsn", "123456789");
+        request.put("bsn", "555666777");
         request.put("phoneNumber", "0612345678");
 
         mockMvc.perform(post("/auth/register")
@@ -136,7 +136,7 @@ class AuthControllerFunctionalTest {
     }
 
     @Test
-    void register_withDuplicateEmail_throwsAndReturns500() throws Exception {
+    void register_withDuplicateEmail_returns400() throws Exception {
         // Seed an existing user with the same email.
         createCustomerWithPassword("auth-dup@example.com", "Password1!");
 
@@ -149,11 +149,11 @@ class AuthControllerFunctionalTest {
         request.put("phoneNumber", "0612345679");
 
         // AuthService throws IllegalArgumentException for duplicate email,
-        // which the default Spring error handler maps to 500.
+        // which GlobalExceptionHandler maps to 400.
         mockMvc.perform(post("/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().is5xxServerError());
+                .andExpect(status().isBadRequest());
     }
 
     // --- POST /auth/login ---
@@ -161,7 +161,7 @@ class AuthControllerFunctionalTest {
     @Test
     void login_happyPath_returnsTokenAndUserInfo() throws Exception {
         User user = createCustomerWithPassword("auth-login@example.com", "Password1!");
-        createProfile(user, "111222333");
+        createProfile(user, "555666888");
 
         Map<String, Object> request = new HashMap<>();
         request.put("email", "auth-login@example.com");
