@@ -34,7 +34,7 @@ public class AccountService {
         this(accountRepository, () -> ThreadLocalRandom.current().nextLong(1_000_000_000L, 9_999_999_999L));
     }
 
-    AccountService(AccountRepository accountRepository, LongSupplier ibanNumberSource) {
+    public AccountService(AccountRepository accountRepository, LongSupplier ibanNumberSource) {
         this.accountRepository = accountRepository;
         this.ibanNumberSource = ibanNumberSource;
     }

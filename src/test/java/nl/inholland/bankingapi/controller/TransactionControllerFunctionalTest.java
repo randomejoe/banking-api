@@ -1,4 +1,4 @@
-package nl.inholland.bankingapi.controllers;
+package nl.inholland.bankingapi.controller;
 
 import nl.inholland.bankingapi.entities.Account;
 import nl.inholland.bankingapi.entities.Transaction;

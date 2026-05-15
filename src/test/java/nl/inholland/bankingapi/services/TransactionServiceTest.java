@@ -14,6 +14,7 @@ import nl.inholland.bankingapi.exceptions.ResourceNotFoundException;
 import nl.inholland.bankingapi.mappers.TransactionMapper;
 import nl.inholland.bankingapi.repositories.AccountRepository;
 import nl.inholland.bankingapi.repositories.TransactionRepository;
+import nl.inholland.bankingapi.services.TransactionService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
