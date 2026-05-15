@@ -1,5 +1,4 @@
 package nl.inholland.bankingapi.controllers;
-
 import nl.inholland.bankingapi.entities.Account;
 import nl.inholland.bankingapi.entities.User;
 import nl.inholland.bankingapi.entities.enums.AccountStatus;
@@ -149,6 +148,10 @@ class AccountControllerFunctionalTest {
         User customer = createCustomer("ac-patch-customer@example.com");
         User employee = createEmployee("ac-patch-employee@example.com");
         Account account = createAccount(customer, "FTACCTPATCH01");
+
+        // Zero out the balance so the business rule ("Cannot close account with non-zero balance") is not triggered.
+        account.setBalance(BigDecimal.ZERO);
+        accountRepository.save(account);
 
         Map<String, Object> request = new HashMap<>();
         request.put("absoluteTransferLimit", "200.00");

@@ -4,6 +4,7 @@ import nl.inholland.bankingapi.entities.Account;
 import nl.inholland.bankingapi.entities.User;
 import nl.inholland.bankingapi.entities.enums.UserRole;
 import nl.inholland.bankingapi.repositories.AccountRepository;
+import nl.inholland.bankingapi.services.AccountService;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Proxy;
