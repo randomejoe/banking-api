@@ -2,6 +2,7 @@ package nl.inholland.bankingapi.entities;
 
 import nl.inholland.bankingapi.entities.enums.UserRole;
 import jakarta.persistence.*;
+import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -43,6 +44,11 @@ public class User implements UserDetails {
     private UserRole role;
 
     private LocalDateTime createdAt;
+
+    // Inverse side — CustomerProfile owns the FK (user_id). No cascade; read-only navigation.
+    @OneToOne(mappedBy = "user", fetch = FetchType.LAZY, optional = true)
+    @Setter(AccessLevel.NONE)
+    private CustomerProfile customerProfile;
 
     public User(int id, String email, String passwordHash, String firstName, String lastName,
                 UserRole role, LocalDateTime createdAt) {

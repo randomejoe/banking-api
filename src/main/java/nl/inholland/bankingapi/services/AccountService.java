@@ -56,9 +56,7 @@ public class AccountService {
 
         Account checking = buildAccount(user, AccountType.CHECKING, absoluteTransferLimit, dailyTransferLimit);
         Account savings  = buildAccount(user, AccountType.SAVINGS,  absoluteTransferLimit, dailyTransferLimit);
-        accountRepository.save(checking);
-        accountRepository.save(savings);
-        return List.of(checking, savings);
+        return accountRepository.saveAll(List.of(checking, savings));
     }
 
     public Page<Account> getAll(AccountQuery query, Pageable pageable) {
