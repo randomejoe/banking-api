@@ -45,7 +45,7 @@ public class User implements UserDetails {
 
     private LocalDateTime createdAt;
 
-    // Inverse side — CustomerProfile owns the FK (user_id). No cascade; read-only navigation.
+    // CustomerProfile stores the FK, so this side is just for navigation
     @OneToOne(mappedBy = "user", fetch = FetchType.LAZY, optional = true)
     @Setter(AccessLevel.NONE)
     private CustomerProfile customerProfile;

@@ -39,27 +39,23 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-// Registers Mockito with JUnit 5 so @Mock/@InjectMocks fields are created before each test.
 @ExtendWith(MockitoExtension.class)
 class TransactionServiceTest {
 
-    // Creates a Mockito test double instead of using a real repository implementation.
     @Mock
     private TransactionRepository transactionRepository;
 
-    // Another mock dependency controlled entirely from the test.
     @Mock
     private AccountRepository accountRepository;
 
-    // Mocked mapper so we control what entity the service receives from the DTO.
+    // mocked so we control what entity the mapper returns
     @Mock
     private TransactionMapper transactionMapper;
 
-    // Mocked policy lets us verify calls and force policy-related failures when needed.
+    // mocked so we can force failures and verify calls
     @Mock
     private TransactionPolicy transactionPolicy;
 
-    // Builds TransactionService and injects all @Mock fields into its constructor automatically.
     @InjectMocks
     private TransactionService transactionService;
 
@@ -105,14 +101,12 @@ class TransactionServiceTest {
         TransactionFilterParams filters = new TransactionFilterParams();
         Pageable pageable = Pageable.unpaged();
         Page<Transaction> expected = new PageImpl<>(List.of(transaction));
-        // Stubbing: when this mock method is called, return predefined data.
         when(transactionRepository.findAllFiltered(any(), any(), any(), any(), any(), eq(pageable)))
                 .thenReturn(expected);
 
         Page<Transaction> result = transactionService.getAll(filters, pageable);
 
         assertEquals(expected, result);
-        // Verification: assert that collaboration with the mock happened as expected.
         verify(transactionRepository).findAllFiltered(any(), any(), any(), any(), any(), eq(pageable));
     }
 
@@ -120,19 +114,17 @@ class TransactionServiceTest {
 
     @Test
     void getById_returnsTransactionWhenFound() {
-        // Stubbing a specific ID lookup on the repository mock.
         when(transactionRepository.findById(1)).thenReturn(Optional.of(transaction));
 
         Transaction result = transactionService.getById(1);
 
         assertEquals(transaction, result);
-        // Verify the service delegated exactly this lookup to the mock.
         verify(transactionRepository).findById(1);
     }
 
     @Test
     void getById_throwsWhenTransactionNotFound() {
-        // Stub missing transaction to drive the exception branch.
+        // transaction doesn't exist
         when(transactionRepository.findById(99)).thenReturn(Optional.empty());
 
         assertThrows(ResourceNotFoundException.class, () -> transactionService.getById(99));
@@ -145,21 +137,16 @@ class TransactionServiceTest {
         TransactionCreateRequest request = new TransactionCreateRequest(
                 FROM_IBAN, TO_IBAN, null, new BigDecimal("100.00"), TransactionType.TRANSFER, "test");
 
-        // Stubbing repository lookups to simulate existing accounts.
         when(accountRepository.findByIban(FROM_IBAN)).thenReturn(Optional.of(fromAccount));
-        // Separate stub for the destination account.
         when(accountRepository.findByIban(TO_IBAN)).thenReturn(Optional.of(toAccount));
-        // Stub mapper so the service receives a predictable entity.
         when(transactionMapper.toEntity(request)).thenReturn(transaction);
-        // Stub save result so the service returns a predictable object.
         when(transactionRepository.save(transaction)).thenReturn(transaction);
 
         Transaction result = transactionService.create(request, customerUser);
 
         assertNotNull(result);
-        // Verify the service delegated all validation to the single high-level policy method.
         verify(transactionPolicy).enforceTransferPolicy(request, fromAccount, toAccount, customerUser);
-        // Verify both account balances were persisted after debit/credit.
+        // both accounts should be saved after the debit and credit
         verify(accountRepository).save(fromAccount);
         verify(accountRepository).save(toAccount);
         verify(transactionRepository).save(transaction);
@@ -170,13 +157,13 @@ class TransactionServiceTest {
         TransactionCreateRequest request = new TransactionCreateRequest(
                 FROM_IBAN, TO_IBAN, null, new BigDecimal("100.00"), TransactionType.TRANSFER, null);
 
-        // Stub missing source account to drive the exception branch.
+        // source account doesn't exist
         when(accountRepository.findByIban(FROM_IBAN)).thenReturn(Optional.empty());
 
         assertThrows(ResourceNotFoundException.class,
                 () -> transactionService.create(request, customerUser));
 
-        // Verify no saves occurred after the missing account failure.
+        // nothing should be saved
         verify(transactionRepository, never()).save(any());
     }
 
@@ -186,7 +173,7 @@ class TransactionServiceTest {
                 FROM_IBAN, TO_IBAN, null, new BigDecimal("100.00"), TransactionType.TRANSFER, null);
 
         when(accountRepository.findByIban(FROM_IBAN)).thenReturn(Optional.of(fromAccount));
-        // Destination account is missing in this scenario.
+        // destination account doesn't exist
         when(accountRepository.findByIban(TO_IBAN)).thenReturn(Optional.empty());
 
         assertThrows(ResourceNotFoundException.class,
@@ -202,7 +189,6 @@ class TransactionServiceTest {
 
         when(accountRepository.findByIban(FROM_IBAN)).thenReturn(Optional.of(fromAccount));
         when(accountRepository.findByIban(TO_IBAN)).thenReturn(Optional.of(toAccount));
-        // doThrow(...).when(mock) is the preferred style for forcing exceptions on void methods.
         doThrow(new BadRequestException("Transfer would breach the absolute transfer limit for account: " + FROM_IBAN))
                 .when(transactionPolicy).enforceTransferPolicy(request, fromAccount, toAccount, customerUser);
 
@@ -211,7 +197,7 @@ class TransactionServiceTest {
 
         assertEquals("Transfer would breach the absolute transfer limit for account: " + FROM_IBAN,
                 exception.getMessage());
-        // Verify no persistence side effects after policy failure.
+        // nothing should be saved if policy throws
         verify(transactionRepository, never()).save(any());
         verify(accountRepository, never()).save(any());
     }
@@ -230,11 +216,9 @@ class TransactionServiceTest {
         Transaction result = transactionService.create(request, customerUser);
 
         assertNotNull(result);
-        // Verify the service delegated validation to the deposit policy method.
         verify(transactionPolicy).enforceDepositPolicy(request, toAccount);
-        // Verify only the destination account balance was saved.
+        // only the destination account changes for a deposit
         verify(accountRepository).save(toAccount);
-        // Verify the transfer policy was never called for a deposit.
         verify(transactionPolicy, never()).enforceTransferPolicy(any(), any(), any(), any());
     }
 
@@ -265,11 +249,9 @@ class TransactionServiceTest {
         Transaction result = transactionService.create(request, customerUser);
 
         assertNotNull(result);
-        // Verify the service delegated validation to the withdrawal policy method.
         verify(transactionPolicy).enforceWithdrawalPolicy(request, fromAccount, customerUser);
-        // Verify only the source account balance was saved.
+        // only the source account changes for a withdrawal
         verify(accountRepository).save(fromAccount);
-        // Verify the transfer policy was never called for a withdrawal.
         verify(transactionPolicy, never()).enforceTransferPolicy(any(), any(), any(), any());
     }
 
@@ -293,16 +275,14 @@ class TransactionServiceTest {
         TransactionCreateRequest request = new TransactionCreateRequest(
                 null, null, null, new BigDecimal("50.00"), null, null);
 
-        // Force policy to throw when given an unrecognised type.
         doThrow(new BadRequestException("Unsupported transaction type: null"))
                 .when(transactionPolicy).enforceUnsupportedType(null);
 
         assertThrows(BadRequestException.class,
                 () -> transactionService.create(request, customerUser));
 
-        // Verify policy was consulted for the unsupported type path.
         verify(transactionPolicy).enforceUnsupportedType(null);
-        // Verify no accounts were touched.
+        // no accounts should be touched for an unknown type
         verify(accountRepository, never()).findByIban(any());
         verify(transactionRepository, never()).save(any());
     }

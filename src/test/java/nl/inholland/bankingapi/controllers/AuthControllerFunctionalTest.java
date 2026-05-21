@@ -25,12 +25,9 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-// Boots the full Spring application context so this test exercises real wiring.
 @SpringBootTest
-// Exposes MockMvc from the context, allowing HTTP-style endpoint testing without a real server.
 @AutoConfigureMockMvc
-// Wraps each test in a transaction and rolls it back afterward to keep database state isolated.
-@Transactional
+@Transactional // rolls back DB changes after each test
 class AuthControllerFunctionalTest {
 
     @Autowired
@@ -45,17 +42,15 @@ class AuthControllerFunctionalTest {
     @Autowired
     private CustomerProfileRepository customerProfileRepository;
 
-    // Used to BCrypt-encode passwords so login tests can verify against a real hash.
     @Autowired
     private PasswordEncoder passwordEncoder;
 
-    // Used to generate real JWT tokens so the JwtAuthenticationFilter authenticates correctly.
     @Autowired
     private JwtUtil jwtUtil;
 
-    // --- Helper methods ---
+    // --- helpers ---
 
-    // Creates a user whose password is properly BCrypt-encoded so AuthService.login can verify it.
+    // password needs to be hashed for login to work in tests
     private User createCustomerWithPassword(String email, String rawPassword) {
         User user = new User();
         user.setEmail(email);
@@ -75,7 +70,6 @@ class AuthControllerFunctionalTest {
         return customerProfileRepository.save(profile);
     }
 
-    // Generates a real Bearer token so the JwtAuthenticationFilter can authenticate the user.
     private String bearerToken(User user) {
         return "Bearer " + jwtUtil.generateToken(user);
     }
@@ -105,7 +99,7 @@ class AuthControllerFunctionalTest {
     @Test
     void register_withMissingEmail_returns400() throws Exception {
         Map<String, Object> request = new HashMap<>();
-        // email intentionally omitted — @NotBlank on RegisterRequest.email triggers 400.
+        // no email field — should fail validation
         request.put("password", "Password1!");
         request.put("firstName", "Alice");
         request.put("lastName", "Smith");
@@ -122,7 +116,7 @@ class AuthControllerFunctionalTest {
     void register_withWeakPassword_returns400() throws Exception {
         Map<String, Object> request = new HashMap<>();
         request.put("email", "auth-weak@example.com");
-        // Does not satisfy the complexity @Pattern (no uppercase, no special char).
+        // too simple — no uppercase or special character
         request.put("password", "weakpassword");
         request.put("firstName", "Alice");
         request.put("lastName", "Smith");
@@ -137,7 +131,7 @@ class AuthControllerFunctionalTest {
 
     @Test
     void register_withDuplicateEmail_returns400() throws Exception {
-        // Seed an existing user with the same email.
+        // create a user with this email first so the second registration fails
         createCustomerWithPassword("auth-dup@example.com", "Password1!");
 
         Map<String, Object> request = new HashMap<>();
@@ -148,8 +142,7 @@ class AuthControllerFunctionalTest {
         request.put("bsn", "999888777");
         request.put("phoneNumber", "0612345679");
 
-        // AuthService throws IllegalArgumentException for duplicate email,
-        // which GlobalExceptionHandler maps to 400.
+        // duplicate email = 400
         mockMvc.perform(post("/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
@@ -182,7 +175,7 @@ class AuthControllerFunctionalTest {
 
         Map<String, Object> request = new HashMap<>();
         request.put("email", "auth-wrongpass@example.com");
-        // Correct format but does not match the stored hash.
+        // wrong password
         request.put("password", "WrongPassword1!");
 
         mockMvc.perform(post("/auth/login")
@@ -197,7 +190,7 @@ class AuthControllerFunctionalTest {
         request.put("email", "nobody@example.com");
         request.put("password", "Password1!");
 
-        // AuthService throws ResponseStatusException(UNAUTHORIZED) when email is not found.
+        // unknown email should return 401
         mockMvc.perform(post("/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
@@ -220,7 +213,7 @@ class AuthControllerFunctionalTest {
 
     @Test
     void me_withoutAuthentication_returns401() throws Exception {
-        // No Authorization header — the JwtAuthenticationFilter rejects the request.
+        // no token = 401
         mockMvc.perform(get("/auth/me"))
                 .andExpect(status().isUnauthorized());
     }

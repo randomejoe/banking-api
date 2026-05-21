@@ -42,8 +42,7 @@ public class UserController extends BaseController {
     Page<CustomerSummaryResponse> getAll(@RequestParam(required = false) CustomerStatus status,
                                          @RequestParam(required = false) String search,
                                          @PageableDefault(size = 20) Pageable pageable) {
-        // Fetch the page of users, then batch-load all their profiles in one query
-        // to avoid N+1 SELECT statements.
+        // load all profiles in one query instead of one per user
         Page<User> users = customerService.getAllCustomers(status, search, pageable);
         List<Integer> ids = users.stream().map(User::getId).toList();
         Map<Integer, CustomerProfile> profileMap = customerService.getProfileMapByUserIds(ids);

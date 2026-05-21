@@ -32,12 +32,9 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-// Boots the full Spring application context so this test exercises real wiring.
 @SpringBootTest
-// Exposes MockMvc from the context, allowing HTTP-style endpoint testing without a real server.
 @AutoConfigureMockMvc
-// Wraps each test in a transaction and rolls it back afterward to keep database state isolated.
-@Transactional
+@Transactional // rolls back DB changes after each test
 class TransactionControllerFunctionalTest {
 
     @Autowired
@@ -55,11 +52,10 @@ class TransactionControllerFunctionalTest {
     @Autowired
     private TransactionRepository transactionRepository;
 
-    // Used to generate real JWT tokens so the JwtAuthenticationFilter authenticates correctly.
     @Autowired
     private JwtUtil jwtUtil;
 
-    // --- Helper methods ---
+    // --- helpers ---
 
     private User createCustomer(String email) {
         User user = new User();
@@ -106,7 +102,6 @@ class TransactionControllerFunctionalTest {
         return transactionRepository.save(transaction);
     }
 
-    // Generates a real Bearer token so the JwtAuthenticationFilter can authenticate the user.
     private String bearerToken(User user) {
         return "Bearer " + jwtUtil.generateToken(user);
     }
@@ -141,7 +136,7 @@ class TransactionControllerFunctionalTest {
         Map<String, Object> request = new HashMap<>();
         request.put("toIban", "FT-IBAN-ANY");
         request.put("amount", "50.00");
-        // type is intentionally omitted — @NotNull on TransactionCreateRequest.type triggers 400
+        // no type field — should fail validation
 
         mockMvc.perform(post("/transactions")
                         .header("Authorization", bearerToken(customer))
@@ -157,7 +152,7 @@ class TransactionControllerFunctionalTest {
         request.put("amount", "50.00");
         request.put("type", "DEPOSIT");
 
-        // No Authorization header — should be rejected before reaching the controller.
+        // no token = 401
         mockMvc.perform(post("/transactions")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
@@ -214,16 +209,14 @@ class TransactionControllerFunctionalTest {
         User customer1 = createCustomer("ft-filter-c1@example.com");
         User customer2 = createCustomer("ft-filter-c2@example.com");
 
-        // Each customer has one transaction.
         createTransaction(customer1, null, "FT-IBAN-FC1", TransactionType.DEPOSIT, new BigDecimal("100.00"));
         createTransaction(customer2, null, "FT-IBAN-FC2", TransactionType.DEPOSIT, new BigDecimal("200.00"));
 
-        // The controller sets filters.customerId = currentUser.getId() for non-employees.
+        // customers can only see their own transactions
         mockMvc.perform(get("/transactions")
                         .header("Authorization", bearerToken(customer1)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content").isArray())
-                // Every transaction in the response must belong to customer1.
                 .andExpect(jsonPath("$.content[*].initiatedByUserId",
                         everyItem(is(customer1.getId()))));
     }
