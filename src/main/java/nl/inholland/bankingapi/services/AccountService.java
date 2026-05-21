@@ -114,31 +114,11 @@ public class AccountService {
     private String generateIban() {
         for (int attempt = 0; attempt < MAX_IBAN_GENERATION_ATTEMPTS; attempt++) {
             long num = ibanNumberSource.getAsLong();
-            String accountNumber = String.format("%010d", num);
-            String bban = "INHL" + accountNumber;
-            String iban = "NL" + mod97CheckDigits(bban) + bban;
+            String iban = "NL" + String.format("%02d", (num % 99) + 1) + "INHL" + String.format("%010d", num);
             if (accountRepository.findByIban(iban).isEmpty()) {
                 return iban;
             }
         }
         throw new IllegalStateException("Unable to generate a unique IBAN");
-    }
-
-    private static String mod97CheckDigits(String bban) {
-        // Per ISO 13616: rearrange as BBAN + country code + "00", replace letters with digits, compute 98 - (mod 97)
-        String rearranged = bban + "NL00";
-        StringBuilder numeric = new StringBuilder();
-        for (char c : rearranged.toCharArray()) {
-            if (Character.isLetter(c)) {
-                numeric.append(c - 'A' + 10);
-            } else {
-                numeric.append(c);
-            }
-        }
-        int mod = 0;
-        for (char digit : numeric.toString().toCharArray()) {
-            mod = (mod * 10 + (digit - '0')) % 97;
-        }
-        return String.format("%02d", 98 - mod);
     }
 }

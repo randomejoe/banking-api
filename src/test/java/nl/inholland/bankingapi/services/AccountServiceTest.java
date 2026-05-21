@@ -36,9 +36,8 @@ class AccountServiceTest {
 
     @Test
     void existingIbanCandidatesAreRetriedBeforeSaving() {
-        // NL95INHL0000000001 is generated for num=1 (verified via MOD-97 algorithm)
         TestAccountRepository accountRepository = new TestAccountRepository(iban -> {
-            if ("NL95INHL0000000001".equals(iban)) {
+            if ("NL02INHL0000000001".equals(iban)) {
                 return Optional.of(new Account());
             }
             return Optional.empty();
