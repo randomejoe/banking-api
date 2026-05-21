@@ -31,12 +31,9 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-// Boots the full Spring application context so this test exercises real wiring.
 @SpringBootTest
-// Exposes MockMvc from the context, allowing HTTP-style endpoint testing without a real server.
 @AutoConfigureMockMvc
-// Wraps each test in a transaction and rolls it back afterward to keep database state isolated.
-@Transactional
+@Transactional // rolls back DB changes after each test
 class UserControllerFunctionalTest {
 
     @Autowired
@@ -54,11 +51,10 @@ class UserControllerFunctionalTest {
     @Autowired
     private AccountRepository accountRepository;
 
-    // Used to generate real JWT tokens so the JwtAuthenticationFilter authenticates correctly.
     @Autowired
     private JwtUtil jwtUtil;
 
-    // --- Helper methods ---
+    // --- helpers ---
 
     private User createCustomer(String email) {
         User user = new User();
@@ -98,7 +94,6 @@ class UserControllerFunctionalTest {
         return customerProfileRepository.save(profile);
     }
 
-    // Generates a real Bearer token so the JwtAuthenticationFilter can authenticate the user.
     private String bearerToken(User user) {
         return "Bearer " + jwtUtil.generateToken(user);
     }
@@ -107,7 +102,7 @@ class UserControllerFunctionalTest {
 
     @Test
     void getAll_withoutAuthentication_returns401() throws Exception {
-        // No Authorization header — Spring Security rejects the request before reaching the controller.
+        // no token = 401
         mockMvc.perform(get("/users"))
                 .andExpect(status().isUnauthorized());
     }
@@ -117,7 +112,7 @@ class UserControllerFunctionalTest {
         User customer = createCustomer("uc-getall-customer@example.com");
         createProfile(customer, "100000001");
 
-        // @PreAuthorize("hasRole('EMPLOYEE')") on GET /users rejects customers with 403.
+        // customers can't access this endpoint
         mockMvc.perform(get("/users")
                         .header("Authorization", bearerToken(customer)))
                 .andExpect(status().isForbidden());
@@ -139,8 +134,7 @@ class UserControllerFunctionalTest {
     void getAll_whenNoCustomersExist_returnsEmptyList() throws Exception {
         User employee = createEmployee("uc-empty-employee@example.com");
 
-        // No customers created in this transaction — the DataLoader customers are isolated
-        // to the outer context, so filtering by a nonexistent search returns empty content.
+        // no customers in this test's transaction, so search should return nothing
         mockMvc.perform(get("/users?search=nonexistent-name-xyz987")
                         .header("Authorization", bearerToken(employee)))
                 .andExpect(status().isOk())
@@ -192,7 +186,7 @@ class UserControllerFunctionalTest {
     void updateUser_customerGetsForbidden() throws Exception {
         User customer = createCustomer("uc-patch-forbidden@example.com");
 
-        // @PreAuthorize("hasRole('EMPLOYEE')") on PATCH rejects customers with 403.
+        // customers can't update users
         mockMvc.perform(patch("/users/{id}", customer.getId())
                         .header("Authorization", bearerToken(customer))
                         .contentType(MediaType.APPLICATION_JSON)

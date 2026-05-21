@@ -26,7 +26,7 @@ public class TransactionPolicy {
         this.transactionRepository = transactionRepository;
     }
 
-    // --- High-level orchestrating methods (called by TransactionService) ---
+    // --- main validation methods (called by TransactionService) ---
 
     public void enforceTransferPolicy(TransactionCreateRequest request, Account fromAccount, Account toAccount, User initiatedBy) {
         enforceTransferIbansPresent(request.fromIban(), request.toIban());
@@ -51,7 +51,7 @@ public class TransactionPolicy {
         enforceDailyTransferLimit(fromAccount, request.amount());
     }
 
-    // --- Individual rule methods (called internally; also usable directly in tests) ---
+    // --- individual rules (also tested directly) ---
 
     public void enforceTransferIbansPresent(String fromIban, String toIban) {
         if (fromIban == null || fromIban.isBlank() || toIban == null || toIban.isBlank()) {

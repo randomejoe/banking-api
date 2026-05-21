@@ -85,7 +85,7 @@ class AccountPolicyTest {
 
     @Test
     void enforceValidLimits_bothNull_doesNotThrow() {
-        // Null means "do not update" — valid for PATCH requests
+        // null means "don't change this field" which is fine for a PATCH
         assertDoesNotThrow(() -> accountPolicy.enforceValidLimits(null, null));
     }
 
@@ -116,7 +116,7 @@ class AccountPolicyTest {
 
     @Test
     void enforceValidLimits_bothNegative_throwsOnFirstViolation() {
-        // The absolute limit is checked first; the first illegal argument throws immediately.
+        // absolute limit is validated first, so that's the one that throws
         assertThrows(IllegalArgumentException.class,
                 () -> accountPolicy.enforceValidLimits(new BigDecimal("-10"), new BigDecimal("-10")));
     }

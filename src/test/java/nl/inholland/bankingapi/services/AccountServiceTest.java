@@ -24,13 +24,12 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 class AccountServiceTest {
 
-    // Shared AccountPolicy instance (no dependencies, safe to reuse)
     private final AccountPolicy accountPolicy = new AccountPolicy();
     private final AccountAccessPolicy accountAccessPolicy = new AccountAccessPolicy();
 
     @Test
     void exhaustingIbanCandidatesDoesNotSavePartialAccounts() {
-        // All IBAN lookups return "already exists" — service must exhaust all attempts and throw
+        // every IBAN is already taken, so the service runs out of candidates and throws
         TestAccountRepository accountRepository = new TestAccountRepository(iban -> Optional.of(new Account()));
         AccountService accountService = new AccountService(accountRepository.proxy(), accountPolicy, accountAccessPolicy, () -> 1L);
         User user = new User(1, "user@example.com", "secret", "Test", "User", UserRole.CUSTOMER, LocalDateTime.now());
@@ -123,7 +122,7 @@ class AccountServiceTest {
                             yield args[0];
                         }
                         case "saveAll" -> {
-                            // saveAll receives a List<Account>; count each element as one save
+                            // count each account in the list individually
                             List<?> accounts = (List<?>) args[0];
                             saves[0] += accounts.size();
                             yield accounts;

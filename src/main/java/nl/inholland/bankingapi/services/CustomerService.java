@@ -51,10 +51,7 @@ public class CustomerService {
         return userRepository.findCustomers(status, search, pageable);
     }
 
-    /**
-     * Batch-fetches profiles for a list of user IDs in a single query.
-     * Use this instead of calling getProfileByUserId in a loop to avoid N+1 queries.
-     */
+    // loads all profiles for the given user IDs in one query instead of one-by-one
     public Map<Integer, CustomerProfile> getProfileMapByUserIds(List<Integer> userIds) {
         if (userIds.isEmpty()) return Map.of();
         return customerProfileRepository.findByUser_IdIn(userIds).stream()
@@ -68,23 +65,28 @@ public class CustomerService {
         if (user == null || profile == null) return null;
 
         CustomerStatus previousStatus = profile.getStatus();
-        CustomerStatus newStatus = request.status() != null ? CustomerStatus.valueOf(request.status()) : null;
+        CustomerStatus newStatus = request.status();
 
-        // Update via Optional.ifPresent — null fields mean "no change" (PATCH semantics)
+        // only update fields that were actually sent — null means leave unchanged
         Optional.ofNullable(request.firstName()).ifPresent(user::setFirstName);
         Optional.ofNullable(request.lastName()).ifPresent(user::setLastName);
         Optional.ofNullable(newStatus).ifPresent(profile::setStatus);
         Optional.ofNullable(request.phoneNumber()).ifPresent(profile::setPhoneNumber);
 
-        // Both entities are managed in this @Transactional scope —
-        // a single flush at commit propagates all field changes to the database.
         customerProfileRepository.save(profile);
 
-        if (newStatus == CustomerStatus.ACTIVE && previousStatus != CustomerStatus.ACTIVE) {
-            BigDecimal absLimit   = request.absoluteTransferLimit() != null ? request.absoluteTransferLimit() : defaultAbsoluteTransferLimit;
-            BigDecimal dailyLimit = request.dailyTransferLimit()    != null ? request.dailyTransferLimit()    : defaultDailyTransferLimit;
-            accountService.createAccountsForUser(user, absLimit, dailyLimit);
-        }
+        provisionAccountsIfActivated(user, previousStatus, newStatus, request);
         return profile;
+    }
+
+    // creates accounts when a customer is activated for the first time; does nothing otherwise
+    private void provisionAccountsIfActivated(User user, CustomerStatus previousStatus,
+                                               CustomerStatus newStatus, CustomerUpdateRequest request) {
+        if (newStatus != CustomerStatus.ACTIVE || previousStatus == CustomerStatus.ACTIVE) return;
+        BigDecimal absLimit   = request.absoluteTransferLimit()  != null
+                ? request.absoluteTransferLimit()  : defaultAbsoluteTransferLimit;
+        BigDecimal dailyLimit = request.dailyTransferLimit()     != null
+                ? request.dailyTransferLimit()     : defaultDailyTransferLimit;
+        accountService.createAccountsForUser(user, absLimit, dailyLimit);
     }
 }

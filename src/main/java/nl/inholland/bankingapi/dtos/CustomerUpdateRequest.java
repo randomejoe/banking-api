@@ -3,11 +3,13 @@ package nl.inholland.bankingapi.dtos;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.PositiveOrZero;
 import jakarta.validation.constraints.Size;
+import nl.inholland.bankingapi.entities.enums.CustomerStatus;
 
 import java.math.BigDecimal;
 
 public record CustomerUpdateRequest(
-        String status,
+        // Jackson converts the JSON string "ACTIVE" / "PENDING" to this enum for us
+        CustomerStatus status,
 
         @Size(max = 64, message = "First name must be at most 64 characters")
         String firstName,

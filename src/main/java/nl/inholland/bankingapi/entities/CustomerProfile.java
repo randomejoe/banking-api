@@ -21,14 +21,12 @@ public class CustomerProfile {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private int id;
 
-    // FetchType.LAZY prevents Hibernate from eagerly loading User when loading
-    // CustomerProfile, which avoids stale proxy references during bulk deletes.
+    // lazy so loading a profile doesn't pull in the full User object too
     @OneToOne(optional = false, fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false, unique = true)
     private User user;
 
-    // Read the FK column directly so getUserId() never needs the lazy proxy to be
-    // initialized — safe to call outside a transaction context.
+    // stores user_id as a plain int so getUserId() works without touching the lazy association
     @Column(name = "user_id", insertable = false, updatable = false)
     private int userId;
 
@@ -41,8 +39,7 @@ public class CustomerProfile {
     @Column(nullable = false)
     private CustomerStatus status;
 
-    // Read-only navigation: fetch accounts for this profile's user
-    // insertable/updatable = false prevents Hibernate from managing this FK column
+    // read-only link to the user's accounts; we don't manage this relationship here
     @OneToMany(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", referencedColumnName = "user_id",
             insertable = false, updatable = false,
@@ -58,7 +55,7 @@ public class CustomerProfile {
     }
 
     public int getUserId() {
-        // Uses the stored column value — safe outside a transaction (no lazy proxy needed).
+        // uses the stored column, not profile.getUser().getId()
         return userId;
     }
 }
