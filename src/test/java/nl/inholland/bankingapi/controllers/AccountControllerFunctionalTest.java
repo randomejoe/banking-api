@@ -247,4 +247,50 @@ class AccountControllerFunctionalTest {
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isForbidden());
     }
+
+    @Test
+    void updateAccount_emptyBody_returns400() throws Exception {
+        User customer = createCustomer("ac-empty@example.com");
+        User employee = createEmployee("ac-empty-emp@example.com");
+        Account account = createAccount(customer, "FTACCTEMPTY01");
+
+        // No fields provided — @AssertTrue hasAtLeastOneField on AccountUpdateRequest fails.
+        mockMvc.perform(patch("/accounts/{iban}", account.getIban())
+                        .header("Authorization", bearerToken(employee))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void updateAccount_negativeLimit_returns400() throws Exception {
+        User customer = createCustomer("ac-neglimit@example.com");
+        User employee = createEmployee("ac-neglimit-emp@example.com");
+        Account account = createAccount(customer, "FTACCTNEGLIM01");
+
+        Map<String, Object> request = new HashMap<>();
+        request.put("absoluteTransferLimit", -1.00);
+
+        // @PositiveOrZero on absoluteTransferLimit rejects negative values.
+        mockMvc.perform(patch("/accounts/{iban}", account.getIban())
+                        .header("Authorization", bearerToken(employee))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void updateAccount_nonExistentIban_returns404() throws Exception {
+        User employee = createEmployee("ac-notfound-emp@example.com");
+
+        Map<String, Object> request = new HashMap<>();
+        request.put("absoluteTransferLimit", "500.00");
+
+        // No account exists with this IBAN — service throws ResourceNotFoundException → 404.
+        mockMvc.perform(patch("/accounts/NL99XXXX0000000000")
+                        .header("Authorization", bearerToken(employee))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isNotFound());
+    }
 }

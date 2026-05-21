@@ -10,6 +10,7 @@ import org.junit.jupiter.api.Test;
 import java.lang.reflect.Proxy;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 import java.util.function.LongSupplier;
 
@@ -75,6 +76,12 @@ class AccountServiceTest {
                         case "save" -> {
                             saves[0]++;
                             yield args[0];
+                        }
+                        case "saveAll" -> {
+                            // saveAll receives a List<Account>; count each element as one save
+                            List<?> accounts = (List<?>) args[0];
+                            saves[0] += accounts.size();
+                            yield accounts;
                         }
                         default -> throw new UnsupportedOperationException(method.getName());
                     }

@@ -19,6 +19,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("users")
@@ -41,8 +42,12 @@ public class UserController extends BaseController {
     Page<CustomerSummaryResponse> getAll(@RequestParam(required = false) CustomerStatus status,
                                          @RequestParam(required = false) String search,
                                          @PageableDefault(size = 20) Pageable pageable) {
-        return customerService.getAllCustomers(status, search, pageable)
-                .map(user -> customerMapper.toSummary(user, customerService.getProfileByUserId(user.getId())));
+        // Fetch the page of users, then batch-load all their profiles in one query
+        // to avoid N+1 SELECT statements.
+        Page<User> users = customerService.getAllCustomers(status, search, pageable);
+        List<Integer> ids = users.stream().map(User::getId).toList();
+        Map<Integer, CustomerProfile> profileMap = customerService.getProfileMapByUserIds(ids);
+        return users.map(user -> customerMapper.toSummary(user, profileMap.get(user.getId())));
     }
 
     @GetMapping("/{id}")

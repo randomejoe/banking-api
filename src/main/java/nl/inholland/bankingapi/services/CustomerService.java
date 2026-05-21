@@ -15,7 +15,10 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
 import java.math.BigDecimal;
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 @Service
 public class CustomerService {
@@ -46,6 +49,16 @@ public class CustomerService {
 
     public Page<User> getAllCustomers(CustomerStatus status, String search, Pageable pageable) {
         return userRepository.findCustomers(status, search, pageable);
+    }
+
+    /**
+     * Batch-fetches profiles for a list of user IDs in a single query.
+     * Use this instead of calling getProfileByUserId in a loop to avoid N+1 queries.
+     */
+    public Map<Integer, CustomerProfile> getProfileMapByUserIds(List<Integer> userIds) {
+        if (userIds.isEmpty()) return Map.of();
+        return customerProfileRepository.findByUser_IdIn(userIds).stream()
+                .collect(Collectors.toMap(CustomerProfile::getUserId, p -> p));
     }
 
     @Transactional
