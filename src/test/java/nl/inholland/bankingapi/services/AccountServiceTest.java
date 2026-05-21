@@ -1,12 +1,15 @@
 package nl.inholland.bankingapi.services;
 
 import nl.inholland.bankingapi.domain.policy.AccountPolicy;
+import nl.inholland.bankingapi.dtos.AccountUpdateRequest;
 import nl.inholland.bankingapi.entities.Account;
 import nl.inholland.bankingapi.entities.User;
 import nl.inholland.bankingapi.entities.enums.UserRole;
 import nl.inholland.bankingapi.repositories.AccountRepository;
 import org.junit.jupiter.api.Test;
+import org.springframework.transaction.annotation.Transactional;
 
+import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -16,6 +19,7 @@ import java.util.function.LongSupplier;
 
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 class AccountServiceTest {
 
@@ -56,6 +60,45 @@ class AccountServiceTest {
         assertEquals(2, accountRepository.saveCount());
     }
 
+    @Test
+    void createAccountsForUser_requiresAbsoluteTransferLimitBeforeSaving() {
+        TestAccountRepository accountRepository = new TestAccountRepository(iban -> Optional.empty());
+        AccountService accountService = new AccountService(accountRepository.proxy(), accountPolicy, () -> 1L);
+        User user = new User(1, "user@example.com", "secret", "Test", "User", UserRole.CUSTOMER, LocalDateTime.now());
+
+        assertThrows(IllegalArgumentException.class, () ->
+                accountService.createAccountsForUser(user, null, BigDecimal.valueOf(500)));
+        assertEquals(0, accountRepository.saveCount());
+    }
+
+    @Test
+    void createAccountsForUser_requiresDailyTransferLimitBeforeSaving() {
+        TestAccountRepository accountRepository = new TestAccountRepository(iban -> Optional.empty());
+        AccountService accountService = new AccountService(accountRepository.proxy(), accountPolicy, () -> 1L);
+        User user = new User(1, "user@example.com", "secret", "Test", "User", UserRole.CUSTOMER, LocalDateTime.now());
+
+        assertThrows(IllegalArgumentException.class, () ->
+                accountService.createAccountsForUser(user, BigDecimal.valueOf(1000), null));
+        assertEquals(0, accountRepository.saveCount());
+    }
+
+    @Test
+    void updateAccountRejectsNegativeLimitsBeforeLookupOrSave() {
+        TestAccountRepository accountRepository = new TestAccountRepository(iban -> Optional.empty());
+        AccountService accountService = new AccountService(accountRepository.proxy(), accountPolicy, () -> 1L);
+        AccountUpdateRequest request = new AccountUpdateRequest(new BigDecimal("-1.00"), null, null);
+
+        assertThrows(IllegalArgumentException.class, () -> accountService.updateAccount("NL02INHL0000000001", request));
+        assertEquals(0, accountRepository.saveCount());
+    }
+
+    @Test
+    void updateAccountIsTransactional() throws NoSuchMethodException {
+        Method method = AccountService.class.getMethod("updateAccount", String.class, AccountUpdateRequest.class);
+
+        assertNotNull(method.getAnnotation(Transactional.class));
+    }
+
     private record TestAccountRepository(IbanLookup ibanLookup, int[] saves) {
         TestAccountRepository(IbanLookup ibanLookup) {
             this(ibanLookup, new int[1]);
@@ -72,6 +115,7 @@ class AccountServiceTest {
                     new Class<?>[]{AccountRepository.class},
                     (proxy, method, args) -> switch (method.getName()) {
                         case "findByIban" -> ibanLookup.find((String) args[0]);
+                        case "existsByIban" -> ibanLookup.find((String) args[0]).isPresent();
                         case "save" -> {
                             saves[0]++;
                             yield args[0];

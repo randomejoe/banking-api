@@ -10,7 +10,6 @@ import nl.inholland.bankingapi.entities.enums.AccountType;
 import nl.inholland.bankingapi.entities.enums.UserRole;
 import nl.inholland.bankingapi.exceptions.ResourceNotFoundException;
 import nl.inholland.bankingapi.repositories.AccountRepository;
-import nl.inholland.bankingapi.repositories.AccountSpecification;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -48,11 +47,7 @@ public class AccountService {
     @Transactional
     public List<Account> createAccountsForUser(User user, BigDecimal absoluteTransferLimit,
                                                BigDecimal dailyTransferLimit) {
-        accountPolicy.enforceValidLimits(absoluteTransferLimit, dailyTransferLimit);
-        if (absoluteTransferLimit == null)
-            throw new IllegalArgumentException("absoluteTransferLimit is required");
-        if (dailyTransferLimit == null)
-            throw new IllegalArgumentException("dailyTransferLimit is required");
+        accountPolicy.enforceRequiredLimits(absoluteTransferLimit, dailyTransferLimit);
 
         Account checking = buildAccount(user, AccountType.CHECKING, absoluteTransferLimit, dailyTransferLimit);
         Account savings  = buildAccount(user, AccountType.SAVINGS,  absoluteTransferLimit, dailyTransferLimit);
@@ -60,7 +55,7 @@ public class AccountService {
     }
 
     public Page<Account> getAll(AccountQuery query, Pageable pageable) {
-        return accountRepository.findAll(AccountSpecification.fromQuery(query), pageable);
+        return accountRepository.findAllFiltered(query, pageable);
     }
 
     public Page<Account> getAllForUser(User currentUser, AccountQuery query, Pageable pageable) {
@@ -76,6 +71,7 @@ public class AccountService {
         return accountRepository.findByUser_Id(userId);
     }
 
+    @Transactional
     public Account updateAccount(String iban, AccountUpdateRequest request) {
         accountPolicy.enforceValidLimits(request.absoluteTransferLimit(), request.dailyTransferLimit());
         Account account = getByIban(iban);
@@ -115,7 +111,7 @@ public class AccountService {
         for (int attempt = 0; attempt < MAX_IBAN_GENERATION_ATTEMPTS; attempt++) {
             long num = ibanNumberSource.getAsLong();
             String iban = "NL" + String.format("%02d", (num % 99) + 1) + "INHL" + String.format("%010d", num);
-            if (accountRepository.findByIban(iban).isEmpty()) {
+            if (!accountRepository.existsByIban(iban)) {
                 return iban;
             }
         }
