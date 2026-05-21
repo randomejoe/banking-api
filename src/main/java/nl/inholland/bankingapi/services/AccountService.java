@@ -1,5 +1,6 @@
 package nl.inholland.bankingapi.services;
 
+import nl.inholland.bankingapi.domain.policy.AccountAccessPolicy;
 import nl.inholland.bankingapi.domain.policy.AccountPolicy;
 import nl.inholland.bankingapi.dtos.AccountQuery;
 import nl.inholland.bankingapi.dtos.AccountUpdateRequest;
@@ -7,10 +8,8 @@ import nl.inholland.bankingapi.entities.Account;
 import nl.inholland.bankingapi.entities.User;
 import nl.inholland.bankingapi.entities.enums.AccountStatus;
 import nl.inholland.bankingapi.entities.enums.AccountType;
-import nl.inholland.bankingapi.entities.enums.UserRole;
 import nl.inholland.bankingapi.exceptions.ResourceNotFoundException;
 import nl.inholland.bankingapi.repositories.AccountRepository;
-import nl.inholland.bankingapi.repositories.AccountSpecification;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -30,29 +29,28 @@ public class AccountService {
 
     private final AccountRepository accountRepository;
     private final AccountPolicy accountPolicy;
+    private final AccountAccessPolicy accountAccessPolicy;
     private final LongSupplier ibanNumberSource;
 
     @Autowired
-    public AccountService(AccountRepository accountRepository, AccountPolicy accountPolicy) {
-        this(accountRepository, accountPolicy,
+    public AccountService(AccountRepository accountRepository, AccountPolicy accountPolicy,
+                          AccountAccessPolicy accountAccessPolicy) {
+        this(accountRepository, accountPolicy, accountAccessPolicy,
                 () -> ThreadLocalRandom.current().nextLong(1_000_000_000L, 9_999_999_999L));
     }
 
     public AccountService(AccountRepository accountRepository, AccountPolicy accountPolicy,
-                          LongSupplier ibanNumberSource) {
+                          AccountAccessPolicy accountAccessPolicy, LongSupplier ibanNumberSource) {
         this.accountRepository = accountRepository;
         this.accountPolicy = accountPolicy;
+        this.accountAccessPolicy = accountAccessPolicy;
         this.ibanNumberSource = ibanNumberSource;
     }
 
     @Transactional
     public List<Account> createAccountsForUser(User user, BigDecimal absoluteTransferLimit,
                                                BigDecimal dailyTransferLimit) {
-        accountPolicy.enforceValidLimits(absoluteTransferLimit, dailyTransferLimit);
-        if (absoluteTransferLimit == null)
-            throw new IllegalArgumentException("absoluteTransferLimit is required");
-        if (dailyTransferLimit == null)
-            throw new IllegalArgumentException("dailyTransferLimit is required");
+        accountPolicy.enforceRequiredLimits(absoluteTransferLimit, dailyTransferLimit);
 
         Account checking = buildAccount(user, AccountType.CHECKING, absoluteTransferLimit, dailyTransferLimit);
         Account savings  = buildAccount(user, AccountType.SAVINGS,  absoluteTransferLimit, dailyTransferLimit);
@@ -60,11 +58,11 @@ public class AccountService {
     }
 
     public Page<Account> getAll(AccountQuery query, Pageable pageable) {
-        return accountRepository.findAll(AccountSpecification.fromQuery(query), pageable);
+        return accountRepository.findAllFiltered(query, pageable);
     }
 
     public Page<Account> getAllForUser(User currentUser, AccountQuery query, Pageable pageable) {
-        return getAll(effectiveQueryFor(currentUser, query), pageable);
+        return getAll(accountAccessPolicy.effectiveQueryFor(currentUser, query), pageable);
     }
 
     public Account getByIban(String iban) {
@@ -76,6 +74,7 @@ public class AccountService {
         return accountRepository.findByUser_Id(userId);
     }
 
+    @Transactional
     public Account updateAccount(String iban, AccountUpdateRequest request) {
         accountPolicy.enforceValidLimits(request.absoluteTransferLimit(), request.dailyTransferLimit());
         Account account = getByIban(iban);
@@ -95,27 +94,11 @@ public class AccountService {
                 AccountStatus.ACTIVE, LocalDateTime.now());
     }
 
-    private AccountQuery effectiveQueryFor(User currentUser, AccountQuery query) {
-        AccountQuery effective = new AccountQuery();
-        effective.setUserId(query.getUserId());
-        effective.setType(query.getType());
-        effective.setStatus(query.getStatus());
-        effective.setIban(query.getIban());
-        effective.setName(query.getName());
-
-        if (currentUser.getRole() != UserRole.EMPLOYEE) {
-            effective.setUserId(currentUser.getId());
-            effective.setName(null);
-        }
-
-        return effective;
-    }
-
     private String generateIban() {
         for (int attempt = 0; attempt < MAX_IBAN_GENERATION_ATTEMPTS; attempt++) {
             long num = ibanNumberSource.getAsLong();
             String iban = "NL" + String.format("%02d", (num % 99) + 1) + "INHL" + String.format("%010d", num);
-            if (accountRepository.findByIban(iban).isEmpty()) {
+            if (!accountRepository.existsByIban(iban)) {
                 return iban;
             }
         }
