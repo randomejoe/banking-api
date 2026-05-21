@@ -2,7 +2,6 @@ package nl.inholland.bankingapi.entities;
 
 import nl.inholland.bankingapi.entities.enums.UserRole;
 import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -20,7 +19,6 @@ import java.util.List;
 @Getter
 @Setter
 @NoArgsConstructor
-@AllArgsConstructor
 @ToString(exclude = "passwordHash")
 public class User implements UserDetails {
 
@@ -45,6 +43,17 @@ public class User implements UserDetails {
     private UserRole role;
 
     private LocalDateTime createdAt;
+
+    public User(int id, String email, String passwordHash, String firstName, String lastName,
+                UserRole role, LocalDateTime createdAt) {
+        this.id = id;
+        this.email = email;
+        this.passwordHash = passwordHash;
+        this.firstName = firstName;
+        this.lastName = lastName;
+        this.role = role;
+        this.createdAt = createdAt;
+    }
 
     @Override
     public List<UserRole> getAuthorities() {

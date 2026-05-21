@@ -2,7 +2,7 @@ package nl.inholland.bankingapi;
 
 import nl.inholland.bankingapi.controllers.AccountController;
 import nl.inholland.bankingapi.controllers.AuthController;
-import nl.inholland.bankingapi.controllers.CustomerController;
+import nl.inholland.bankingapi.controllers.UserController;
 import nl.inholland.bankingapi.controllers.TransactionController;
 import nl.inholland.bankingapi.dtos.AccountResponse;
 import nl.inholland.bankingapi.dtos.CurrentUserResponse;
@@ -66,7 +66,7 @@ class BankingApiDtoBoundaryTests {
 
     private static final Set<Class<?>> CONTROLLERS = Set.of(
             AuthController.class,
-            CustomerController.class,
+            UserController.class,
             AccountController.class,
             TransactionController.class
     );
@@ -162,13 +162,13 @@ class BankingApiDtoBoundaryTests {
         transactionRepository.save(new Transaction(0, data.checking().getIban(), data.savings().getIban(), data.user(),
                 new BigDecimal("100.00"), TransactionType.TRANSFER, "transfer", LocalDateTime.now()));
 
-        mockMvc.perform(get("/customers")
+        mockMvc.perform(get("/users")
                         .header("Authorization", bearerToken(employee)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content[0].email").value(data.user().getEmail()))
                 .andExpect(content().string(not(containsString("passwordHash"))));
 
-        mockMvc.perform(get("/customers/" + data.user().getId())
+        mockMvc.perform(get("/users/" + data.user().getId())
                         .header("Authorization", bearerToken(employee)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.accounts[0].iban").exists())
@@ -233,7 +233,7 @@ class BankingApiDtoBoundaryTests {
     void customerSearchMatchesEmailAddresses() throws Exception {
         TestData data = createActiveCustomer();
 
-        mockMvc.perform(get("/customers")
+        mockMvc.perform(get("/users")
                         .header("Authorization", bearerToken(createEmployee()))
                         .param("search", "customer@example.com"))
                 .andExpect(status().isOk())
@@ -287,7 +287,7 @@ class BankingApiDtoBoundaryTests {
         User user = userRepository.save(new User(0, "pending@example.com", "secret", "Pending", "Customer", UserRole.CUSTOMER, LocalDateTime.now()));
         customerProfileRepository.save(new CustomerProfile(0, user, "987654321", "0698765432", CustomerStatus.PENDING));
 
-        mockMvc.perform(patch("/customers/" + user.getId())
+        mockMvc.perform(patch("/users/" + user.getId())
                         .header("Authorization", bearerToken(createEmployee()))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""

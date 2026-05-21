@@ -21,16 +21,16 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 @RestController
-@RequestMapping("customers")
-public class CustomerController {
+@RequestMapping("users")
+public class UserController extends BaseController {
 
     private final CustomerService customerService;
     private final AccountService accountService;
     private final CustomerMapper customerMapper;
 
-    public CustomerController(CustomerService customerService,
-                              AccountService accountService,
-                              CustomerMapper customerMapper) {
+    public UserController(CustomerService customerService,
+                          AccountService accountService,
+                          CustomerMapper customerMapper) {
         this.customerService = customerService;
         this.accountService = accountService;
         this.customerMapper = customerMapper;

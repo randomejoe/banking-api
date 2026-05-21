@@ -7,5 +7,6 @@ import org.springframework.stereotype.Repository;
 @Repository
 public interface CustomerProfileRepository extends CrudRepository<CustomerProfile, Integer> {
 
+    //SELECT * FROM customer_profile WHERE user_id = ?
     CustomerProfile findByUser_Id(int userId);
 }

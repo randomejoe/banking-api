@@ -16,6 +16,7 @@ import org.springframework.data.domain.Pageable;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Optional;
 
 @Service
 public class CustomerService {
@@ -57,17 +58,23 @@ public class CustomerService {
         User user = getUserById(userId);
         CustomerProfile profile = getProfileByUserId(userId);
         if (user == null || profile == null) return null;
+
         CustomerStatus previousStatus = profile.getStatus();
         CustomerStatus newStatus = request.status() != null ? CustomerStatus.valueOf(request.status()) : null;
-        if (request.firstName() != null) user.setFirstName(request.firstName());
-        if (request.lastName() != null) user.setLastName(request.lastName());
-        if (newStatus != null) profile.setStatus(newStatus);
-        if (request.phoneNumber() != null) profile.setPhoneNumber(request.phoneNumber());
-        userRepository.save(user);
+
+        // Update via Optional.ifPresent — null fields mean "no change" (PATCH semantics)
+        Optional.ofNullable(request.firstName()).ifPresent(user::setFirstName);
+        Optional.ofNullable(request.lastName()).ifPresent(user::setLastName);
+        Optional.ofNullable(newStatus).ifPresent(profile::setStatus);
+        Optional.ofNullable(request.phoneNumber()).ifPresent(profile::setPhoneNumber);
+
+        // Both entities are managed in this @Transactional scope —
+        // a single flush at commit propagates all field changes to the database.
         customerProfileRepository.save(profile);
+
         if (newStatus == CustomerStatus.ACTIVE && previousStatus != CustomerStatus.ACTIVE) {
-            BigDecimal absLimit = request.absoluteTransferLimit() != null ? request.absoluteTransferLimit() : defaultAbsoluteTransferLimit;
-            BigDecimal dailyLimit = request.dailyTransferLimit() != null ? request.dailyTransferLimit() : defaultDailyTransferLimit;
+            BigDecimal absLimit   = request.absoluteTransferLimit() != null ? request.absoluteTransferLimit() : defaultAbsoluteTransferLimit;
+            BigDecimal dailyLimit = request.dailyTransferLimit()    != null ? request.dailyTransferLimit()    : defaultDailyTransferLimit;
             accountService.createAccountsForUser(user, absLimit, dailyLimit);
         }
         return profile;
