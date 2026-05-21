@@ -1,5 +1,6 @@
 package nl.inholland.bankingapi.services;
 
+import nl.inholland.bankingapi.domain.policy.AccountAccessPolicy;
 import nl.inholland.bankingapi.domain.policy.AccountPolicy;
 import nl.inholland.bankingapi.dtos.AccountUpdateRequest;
 import nl.inholland.bankingapi.entities.Account;
@@ -25,12 +26,13 @@ class AccountServiceTest {
 
     // Shared AccountPolicy instance (no dependencies, safe to reuse)
     private final AccountPolicy accountPolicy = new AccountPolicy();
+    private final AccountAccessPolicy accountAccessPolicy = new AccountAccessPolicy();
 
     @Test
     void exhaustingIbanCandidatesDoesNotSavePartialAccounts() {
         // All IBAN lookups return "already exists" — service must exhaust all attempts and throw
         TestAccountRepository accountRepository = new TestAccountRepository(iban -> Optional.of(new Account()));
-        AccountService accountService = new AccountService(accountRepository.proxy(), accountPolicy, () -> 1L);
+        AccountService accountService = new AccountService(accountRepository.proxy(), accountPolicy, accountAccessPolicy, () -> 1L);
         User user = new User(1, "user@example.com", "secret", "Test", "User", UserRole.CUSTOMER, LocalDateTime.now());
 
         assertThrows(IllegalStateException.class, () ->
@@ -51,7 +53,7 @@ class AccountServiceTest {
         int[] index = {0};
         LongSupplier source = () -> values[index[0]++];
 
-        AccountService accountService = new AccountService(accountRepository.proxy(), accountPolicy, source);
+        AccountService accountService = new AccountService(accountRepository.proxy(), accountPolicy, accountAccessPolicy, source);
         User user = new User(1, "user@example.com", "secret", "Test", "User", UserRole.CUSTOMER, LocalDateTime.now());
 
         // num=1 is rejected (IBAN exists), num=2 is accepted for first account,
@@ -63,7 +65,7 @@ class AccountServiceTest {
     @Test
     void createAccountsForUser_requiresAbsoluteTransferLimitBeforeSaving() {
         TestAccountRepository accountRepository = new TestAccountRepository(iban -> Optional.empty());
-        AccountService accountService = new AccountService(accountRepository.proxy(), accountPolicy, () -> 1L);
+        AccountService accountService = new AccountService(accountRepository.proxy(), accountPolicy, accountAccessPolicy, () -> 1L);
         User user = new User(1, "user@example.com", "secret", "Test", "User", UserRole.CUSTOMER, LocalDateTime.now());
 
         assertThrows(IllegalArgumentException.class, () ->
@@ -74,7 +76,7 @@ class AccountServiceTest {
     @Test
     void createAccountsForUser_requiresDailyTransferLimitBeforeSaving() {
         TestAccountRepository accountRepository = new TestAccountRepository(iban -> Optional.empty());
-        AccountService accountService = new AccountService(accountRepository.proxy(), accountPolicy, () -> 1L);
+        AccountService accountService = new AccountService(accountRepository.proxy(), accountPolicy, accountAccessPolicy, () -> 1L);
         User user = new User(1, "user@example.com", "secret", "Test", "User", UserRole.CUSTOMER, LocalDateTime.now());
 
         assertThrows(IllegalArgumentException.class, () ->
@@ -85,7 +87,7 @@ class AccountServiceTest {
     @Test
     void updateAccountRejectsNegativeLimitsBeforeLookupOrSave() {
         TestAccountRepository accountRepository = new TestAccountRepository(iban -> Optional.empty());
-        AccountService accountService = new AccountService(accountRepository.proxy(), accountPolicy, () -> 1L);
+        AccountService accountService = new AccountService(accountRepository.proxy(), accountPolicy, accountAccessPolicy, () -> 1L);
         AccountUpdateRequest request = new AccountUpdateRequest(new BigDecimal("-1.00"), null, null);
 
         assertThrows(IllegalArgumentException.class, () -> accountService.updateAccount("NL02INHL0000000001", request));

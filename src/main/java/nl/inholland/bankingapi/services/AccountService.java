@@ -1,5 +1,6 @@
 package nl.inholland.bankingapi.services;
 
+import nl.inholland.bankingapi.domain.policy.AccountAccessPolicy;
 import nl.inholland.bankingapi.domain.policy.AccountPolicy;
 import nl.inholland.bankingapi.dtos.AccountQuery;
 import nl.inholland.bankingapi.dtos.AccountUpdateRequest;
@@ -7,7 +8,6 @@ import nl.inholland.bankingapi.entities.Account;
 import nl.inholland.bankingapi.entities.User;
 import nl.inholland.bankingapi.entities.enums.AccountStatus;
 import nl.inholland.bankingapi.entities.enums.AccountType;
-import nl.inholland.bankingapi.entities.enums.UserRole;
 import nl.inholland.bankingapi.exceptions.ResourceNotFoundException;
 import nl.inholland.bankingapi.repositories.AccountRepository;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -29,18 +29,21 @@ public class AccountService {
 
     private final AccountRepository accountRepository;
     private final AccountPolicy accountPolicy;
+    private final AccountAccessPolicy accountAccessPolicy;
     private final LongSupplier ibanNumberSource;
 
     @Autowired
-    public AccountService(AccountRepository accountRepository, AccountPolicy accountPolicy) {
-        this(accountRepository, accountPolicy,
+    public AccountService(AccountRepository accountRepository, AccountPolicy accountPolicy,
+                          AccountAccessPolicy accountAccessPolicy) {
+        this(accountRepository, accountPolicy, accountAccessPolicy,
                 () -> ThreadLocalRandom.current().nextLong(1_000_000_000L, 9_999_999_999L));
     }
 
     public AccountService(AccountRepository accountRepository, AccountPolicy accountPolicy,
-                          LongSupplier ibanNumberSource) {
+                          AccountAccessPolicy accountAccessPolicy, LongSupplier ibanNumberSource) {
         this.accountRepository = accountRepository;
         this.accountPolicy = accountPolicy;
+        this.accountAccessPolicy = accountAccessPolicy;
         this.ibanNumberSource = ibanNumberSource;
     }
 
@@ -59,7 +62,7 @@ public class AccountService {
     }
 
     public Page<Account> getAllForUser(User currentUser, AccountQuery query, Pageable pageable) {
-        return getAll(effectiveQueryFor(currentUser, query), pageable);
+        return getAll(accountAccessPolicy.effectiveQueryFor(currentUser, query), pageable);
     }
 
     public Account getByIban(String iban) {
@@ -89,22 +92,6 @@ public class AccountService {
         return new Account(0, user, generateIban(), type,
                 BigDecimal.ZERO, absoluteTransferLimit, dailyTransferLimit,
                 AccountStatus.ACTIVE, LocalDateTime.now());
-    }
-
-    private AccountQuery effectiveQueryFor(User currentUser, AccountQuery query) {
-        AccountQuery effective = new AccountQuery();
-        effective.setUserId(query.getUserId());
-        effective.setType(query.getType());
-        effective.setStatus(query.getStatus());
-        effective.setIban(query.getIban());
-        effective.setName(query.getName());
-
-        if (currentUser.getRole() != UserRole.EMPLOYEE) {
-            effective.setUserId(currentUser.getId());
-            effective.setName(null);
-        }
-
-        return effective;
     }
 
     private String generateIban() {
