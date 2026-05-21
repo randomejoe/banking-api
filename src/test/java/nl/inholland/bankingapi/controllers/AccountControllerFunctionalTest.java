@@ -22,8 +22,10 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.everyItem;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -76,14 +78,18 @@ class AccountControllerFunctionalTest {
     }
 
     private Account createAccount(User owner, String iban) {
+        return createAccount(owner, iban, AccountType.CHECKING, AccountStatus.ACTIVE);
+    }
+
+    private Account createAccount(User owner, String iban, AccountType type, AccountStatus status) {
         Account account = new Account();
         account.setUser(owner);
         account.setIban(iban);
-        account.setType(AccountType.CHECKING);
+        account.setType(type);
         account.setBalance(new BigDecimal("1000.00"));
         account.setAbsoluteTransferLimit(new BigDecimal("0.00"));
         account.setDailyTransferLimit(new BigDecimal("5000.00"));
-        account.setStatus(AccountStatus.ACTIVE);
+        account.setStatus(status);
         account.setCreatedAt(LocalDateTime.now());
         return accountRepository.save(account);
     }
@@ -132,6 +138,63 @@ class AccountControllerFunctionalTest {
                 // Both test customers' accounts must appear in the unfiltered employee view.
                 .andExpect(jsonPath("$.content[*].userId",
                         hasItems(customer1.getId(), customer2.getId())));
+    }
+
+    @Test
+    void getAccounts_customerNameFilterCannotExposeOtherCustomerAccounts() throws Exception {
+        User customer1 = createCustomer("ac-name-c1@example.com");
+        User customer2 = createCustomer("ac-name-c2-target@example.com");
+
+        createAccount(customer1, "FTACCTNAMEC101");
+        createAccount(customer2, "FTACCTNAMEC201");
+
+        mockMvc.perform(get("/accounts?name=target&size=100")
+                        .header("Authorization", bearerToken(customer1)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[*].userId",
+                        everyItem(is(customer1.getId()))))
+                .andExpect(jsonPath("$.content[*].iban",
+                        not(hasItem("FTACCTNAMEC201"))));
+    }
+
+    @Test
+    void getAccounts_employeeCanSearchAccountsByCustomerName() throws Exception {
+        User matchingCustomer = createCustomer("ac-search-match@example.com");
+        User otherCustomer = createCustomer("ac-search-other@example.com");
+        User employee = createEmployee("ac-search-employee@example.com");
+
+        matchingCustomer.setFirstName("Alicia");
+        userRepository.save(matchingCustomer);
+
+        createAccount(matchingCustomer, "FTACCTSEARCH01");
+        createAccount(otherCustomer, "FTACCTSEARCH02");
+
+        mockMvc.perform(get("/accounts?name=lici&size=100")
+                        .header("Authorization", bearerToken(employee)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[*].iban",
+                        hasItem("FTACCTSEARCH01")))
+                .andExpect(jsonPath("$.content[*].iban",
+                        not(hasItem("FTACCTSEARCH02"))));
+    }
+
+    @Test
+    void getAccounts_employeeNameSearchComposesWithAccountType() throws Exception {
+        User customer = createCustomer("ac-compose-match@example.com");
+        User employee = createEmployee("ac-compose-employee@example.com");
+
+        createAccount(customer, "FTACCTCOMPOSECHK", AccountType.CHECKING, AccountStatus.ACTIVE);
+        createAccount(customer, "FTACCTCOMPOSESAV", AccountType.SAVINGS, AccountStatus.ACTIVE);
+
+        mockMvc.perform(get("/accounts?name=compose&type=SAVINGS&size=100")
+                        .header("Authorization", bearerToken(employee)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[*].type",
+                        everyItem(is("SAVINGS"))))
+                .andExpect(jsonPath("$.content[*].iban",
+                        hasItem("FTACCTCOMPOSESAV")))
+                .andExpect(jsonPath("$.content[*].iban",
+                        not(hasItem("FTACCTCOMPOSECHK"))));
     }
 
     @Test

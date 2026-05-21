@@ -4,10 +4,8 @@ import nl.inholland.bankingapi.dtos.AccountQuery;
 import nl.inholland.bankingapi.dtos.AccountResponse;
 import nl.inholland.bankingapi.dtos.AccountUpdateRequest;
 import nl.inholland.bankingapi.entities.User;
-import nl.inholland.bankingapi.entities.enums.UserRole;
 import nl.inholland.bankingapi.mappers.AccountMapper;
 import nl.inholland.bankingapi.services.AccountService;
-import nl.inholland.bankingapi.services.CustomerService;
 import jakarta.validation.Valid;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -15,19 +13,15 @@ import org.springframework.data.web.PageableDefault;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
-
 @RestController
 @RequestMapping("accounts")
 public class AccountController extends BaseController {
 
     private final AccountService accountService;
-    private final CustomerService customerService;
     private final AccountMapper accountMapper;
 
-    public AccountController(AccountService accountService, CustomerService customerService, AccountMapper accountMapper) {
+    public AccountController(AccountService accountService, AccountMapper accountMapper) {
         this.accountService = accountService;
-        this.customerService = customerService;
         this.accountMapper = accountMapper;
     }
 
@@ -36,16 +30,7 @@ public class AccountController extends BaseController {
     Page<AccountResponse> getAll(@ModelAttribute AccountQuery query,
                                  @PageableDefault(size = 20) Pageable pageable) {
         User current = currentUser();
-        if (current.getRole() != UserRole.EMPLOYEE) {
-            query.setUserId(current.getId());
-            query.setName(null);
-        }
-
-        if (query.getName() != null) {
-            List<Integer> userIds = customerService.getCustomerIdsBySearch(query.getName());
-            return accountService.getByUserIds(userIds, pageable).map(accountMapper::toResponse);
-        }
-        return accountService.getAll(query, pageable).map(accountMapper::toResponse);
+        return accountService.getAllForUser(current, query, pageable).map(accountMapper::toResponse);
     }
 
     @PatchMapping("/{iban}")

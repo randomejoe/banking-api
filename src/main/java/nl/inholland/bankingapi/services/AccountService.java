@@ -7,6 +7,7 @@ import nl.inholland.bankingapi.entities.Account;
 import nl.inholland.bankingapi.entities.User;
 import nl.inholland.bankingapi.entities.enums.AccountStatus;
 import nl.inholland.bankingapi.entities.enums.AccountType;
+import nl.inholland.bankingapi.entities.enums.UserRole;
 import nl.inholland.bankingapi.exceptions.ResourceNotFoundException;
 import nl.inholland.bankingapi.repositories.AccountRepository;
 import nl.inholland.bankingapi.repositories.AccountSpecification;
@@ -64,6 +65,10 @@ public class AccountService {
         return accountRepository.findAll(AccountSpecification.fromQuery(query), pageable);
     }
 
+    public Page<Account> getAllForUser(User currentUser, AccountQuery query, Pageable pageable) {
+        return getAll(effectiveQueryFor(currentUser, query), pageable);
+    }
+
     public Account getByIban(String iban) {
         return accountRepository.findByIban(iban)
                 .orElseThrow(() -> new ResourceNotFoundException("Account not found: " + iban));
@@ -71,11 +76,6 @@ public class AccountService {
 
     public List<Account> getByUserId(int userId) {
         return accountRepository.findByUser_Id(userId);
-    }
-
-    public Page<Account> getByUserIds(List<Integer> userIds, Pageable pageable) {
-        if (userIds.isEmpty()) return Page.empty(pageable);
-        return accountRepository.findByUser_IdIn(userIds, pageable);
     }
 
     public Account updateAccount(String iban, AccountUpdateRequest request) {
@@ -95,6 +95,22 @@ public class AccountService {
         return new Account(0, user, generateIban(), type,
                 BigDecimal.ZERO, absoluteTransferLimit, dailyTransferLimit,
                 AccountStatus.ACTIVE, LocalDateTime.now());
+    }
+
+    private AccountQuery effectiveQueryFor(User currentUser, AccountQuery query) {
+        AccountQuery effective = new AccountQuery();
+        effective.setUserId(query.getUserId());
+        effective.setType(query.getType());
+        effective.setStatus(query.getStatus());
+        effective.setIban(query.getIban());
+        effective.setName(query.getName());
+
+        if (currentUser.getRole() != UserRole.EMPLOYEE) {
+            effective.setUserId(currentUser.getId());
+            effective.setName(null);
+        }
+
+        return effective;
     }
 
     private String generateIban() {

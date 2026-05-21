@@ -1,8 +1,6 @@
 package nl.inholland.bankingapi.repositories;
 
 import nl.inholland.bankingapi.entities.Account;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.stereotype.Repository;
@@ -16,6 +14,4 @@ public interface AccountRepository extends JpaRepository<Account, Integer>, JpaS
     Optional<Account> findByIban(String iban);
 
     List<Account> findByUser_Id(int userId);
-
-    Page<Account> findByUser_IdIn(List<Integer> userIds, Pageable pageable);
 }

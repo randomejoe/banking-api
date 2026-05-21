@@ -15,7 +15,6 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
 import java.math.BigDecimal;
-import java.util.List;
 import java.util.Optional;
 
 @Service
@@ -47,10 +46,6 @@ public class CustomerService {
 
     public Page<User> getAllCustomers(CustomerStatus status, String search, Pageable pageable) {
         return userRepository.findCustomers(status, search, pageable);
-    }
-
-    public List<Integer> getCustomerIdsBySearch(String search) {
-        return userRepository.findCustomerIdsBySearch(search);
     }
 
     @Transactional
