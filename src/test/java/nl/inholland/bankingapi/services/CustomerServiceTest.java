@@ -21,8 +21,10 @@ import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
 
+import nl.inholland.bankingapi.exceptions.ResourceNotFoundException;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
@@ -83,13 +85,10 @@ class CustomerServiceTest {
     }
 
     @Test
-    void getUserById_returnsNullWhenNotFound() {
-        // Stub missing user to drive the orElse(null) branch.
+    void getUserById_throwsWhenNotFound() {
         when(userRepository.findById(99)).thenReturn(Optional.empty());
 
-        User result = customerService.getUserById(99);
-
-        assertNull(result);
+        assertThrows(ResourceNotFoundException.class, () -> customerService.getUserById(99));
         verify(userRepository).findById(99);
     }
 
@@ -177,16 +176,12 @@ class CustomerServiceTest {
     }
 
     @Test
-    void updateCustomer_whenUserNotFound_returnsNull() {
+    void updateCustomer_whenUserNotFound_throwsResourceNotFoundException() {
         when(userRepository.findById(99)).thenReturn(Optional.empty());
-        // Both lookups run before the null check, so the profile lookup also occurs.
-        when(customerProfileRepository.findByUser_Id(99)).thenReturn(null);
 
         CustomerUpdateRequest request = new CustomerUpdateRequest(null, "Bob", null, null, null, null);
-        CustomerProfile result = customerService.updateCustomer(99, request);
 
-        assertNull(result);
-        // Verify no persistence occurred after the missing user check.
+        assertThrows(ResourceNotFoundException.class, () -> customerService.updateCustomer(99, request));
         verify(userRepository, never()).save(any());
         verify(customerProfileRepository, never()).save(any());
     }

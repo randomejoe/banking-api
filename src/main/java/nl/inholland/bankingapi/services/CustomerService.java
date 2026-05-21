@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import nl.inholland.bankingapi.dtos.CustomerUpdateRequest;
+import nl.inholland.bankingapi.exceptions.ResourceNotFoundException;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
@@ -40,11 +41,14 @@ public class CustomerService {
     }
 
     public User getUserById(int id) {
-        return userRepository.findById(id).orElse(null);
+        return userRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found: " + id));
     }
 
     public CustomerProfile getProfileByUserId(int userId) {
-        return customerProfileRepository.findByUser_Id(userId);
+        CustomerProfile profile = customerProfileRepository.findByUser_Id(userId);
+        if (profile == null) throw new ResourceNotFoundException("Profile not found for user: " + userId);
+        return profile;
     }
 
     public Page<User> getAllCustomers(CustomerStatus status, String search, Pageable pageable) {
@@ -65,7 +69,6 @@ public class CustomerService {
     public CustomerProfile updateCustomer(int userId, CustomerUpdateRequest request) {
         User user = getUserById(userId);
         CustomerProfile profile = getProfileByUserId(userId);
-        if (user == null || profile == null) return null;
 
         CustomerStatus previousStatus = profile.getStatus();
         CustomerStatus newStatus = request.status() != null ? CustomerStatus.valueOf(request.status()) : null;

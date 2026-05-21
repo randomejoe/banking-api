@@ -1,5 +1,6 @@
 package nl.inholland.bankingapi.repositories;
 
+import nl.inholland.bankingapi.dtos.TransactionFilterParams;
 import nl.inholland.bankingapi.entities.Transaction;
 import nl.inholland.bankingapi.entities.enums.TransactionType;
 import org.springframework.data.domain.Page;
@@ -16,11 +17,10 @@ import java.util.List;
 @Repository
 public interface TransactionRepository extends JpaRepository<Transaction, Integer> {
 
-    // Used by the daily transfer limit check in TransactionService
+    // Used by the daily transfer limit check in TransactionPolicy
     List<Transaction> findByFromIbanAndTypeAndTimestampGreaterThanEqual(
             String iban, TransactionType type, LocalDateTime since);
 
-    // Used by GET /transactions — all filters are optional; null = no filter
     @Query("SELECT t FROM Transaction t WHERE " +
            "(:iban IS NULL OR t.fromIban = :iban OR t.toIban = :iban) AND " +
            "(:type IS NULL OR t.type = :type) AND " +
@@ -35,4 +35,15 @@ public interface TransactionRepository extends JpaRepository<Transaction, Intege
             @Param("customerId") Integer customerId,
             Pageable pageable
     );
+
+    default Page<Transaction> findAllFiltered(TransactionFilterParams filters, Pageable pageable) {
+        return findAllFiltered(
+                filters.getIban(),
+                filters.getType(),
+                filters.getMinAmount(),
+                filters.getMaxAmount(),
+                filters.getCustomerId(),
+                pageable
+        );
+    }
 }

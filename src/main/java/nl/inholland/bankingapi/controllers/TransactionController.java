@@ -14,14 +14,12 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
 @RestController
 @RequestMapping("transactions")
-public class TransactionController {
+public class TransactionController extends BaseController {
 
     private final TransactionService transactionService;
     private final TransactionMapper transactionMapper;
@@ -64,13 +62,5 @@ public class TransactionController {
         return transactionMapper.toResponse(transactionService.create(request, currentUser()));
     }
 
-    private User currentUser() {
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
 
-        if (authentication == null || !(authentication.getPrincipal() instanceof User user)) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Not authenticated");
-        }
-
-        return user;
-    }
 }
