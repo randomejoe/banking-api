@@ -12,18 +12,14 @@ import jakarta.validation.Valid;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
-import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
 
 @RestController
 @RequestMapping("accounts")
-public class AccountController {
+public class AccountController extends BaseController {
 
     private final AccountService accountService;
     private final CustomerService customerService;
@@ -39,9 +35,9 @@ public class AccountController {
     @PreAuthorize("hasAnyRole('EMPLOYEE', 'CUSTOMER')")
     Page<AccountResponse> getAll(@ModelAttribute AccountQuery query,
                                  @PageableDefault(size = 20) Pageable pageable) {
-        User currentUser = currentUser();
-        if (currentUser.getRole() != UserRole.EMPLOYEE) {
-            query.setUserId(currentUser.getId());
+        User current = currentUser();
+        if (current.getRole() != UserRole.EMPLOYEE) {
+            query.setUserId(current.getId());
             query.setName(null);
         }
 
@@ -55,18 +51,6 @@ public class AccountController {
     @PatchMapping("/{iban}")
     @PreAuthorize("hasRole('EMPLOYEE')")
     AccountResponse updateAccount(@PathVariable String iban, @RequestBody @Valid AccountUpdateRequest request) {
-        return accountMapper.toResponse(
-                accountService.updateAccount(iban, request.absoluteTransferLimit(), request.dailyTransferLimit(), request.status())
-        );
-    }
-
-    private User currentUser() {
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-
-        if (authentication == null || !(authentication.getPrincipal() instanceof User user)) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Not authenticated");
-        }
-
-        return user;
+        return accountMapper.toResponse(accountService.updateAccount(iban, request));
     }
 }

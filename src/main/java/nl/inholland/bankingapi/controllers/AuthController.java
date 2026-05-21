@@ -13,22 +13,19 @@ import nl.inholland.bankingapi.mappers.UserMapper;
 import nl.inholland.bankingapi.services.AuthService;
 import nl.inholland.bankingapi.services.CustomerService;
 import jakarta.validation.Valid;
-import org.springframework.http.HttpStatus;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.server.ResponseStatusException;
 
 @RestController
 @RequestMapping("auth")
-public class AuthController {
+public class AuthController extends BaseController {
 
-    final private AuthService authService;
-    final private CustomerService customerService;
-    final private UserMapper userMapper;
-    final private CustomerMapper customerMapper;
+    private final AuthService authService;
+    private final CustomerService customerService;
+    private final UserMapper userMapper;
+    private final CustomerMapper customerMapper;
 
-    public AuthController(AuthService authService, CustomerService customerService, UserMapper userMapper, CustomerMapper customerMapper) {
+    public AuthController(AuthService authService, CustomerService customerService,
+                          UserMapper userMapper, CustomerMapper customerMapper) {
         this.authService = authService;
         this.customerService = customerService;
         this.userMapper = userMapper;
@@ -54,12 +51,7 @@ public class AuthController {
 
     @GetMapping("/me")
     CurrentUserResponse me() {
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-
-        if (authentication == null || !(authentication.getPrincipal() instanceof User user)) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Not authenticated");
-        }
-
+        User user = currentUser();
         CustomerProfile profile = customerService.getProfileByUserId(user.getId());
         return customerMapper.toCurrentUser(user, profile);
     }

@@ -123,10 +123,9 @@ class CustomerServiceTest {
     // --- updateCustomer ---
 
     @Test
-    void updateCustomer_happyPath_updatesNameAndPhoneAndSavesBoth() {
+    void updateCustomer_happyPath_updatesNameAndPhoneAndSavesProfile() {
         when(userRepository.findById(1)).thenReturn(Optional.of(customer));
         when(customerProfileRepository.findByUser_Id(1)).thenReturn(profile);
-        when(userRepository.save(customer)).thenReturn(customer);
         when(customerProfileRepository.save(profile)).thenReturn(profile);
 
         CustomerUpdateRequest request = new CustomerUpdateRequest(null, "Bob", "Jones", "0698765432", null, null);
@@ -136,8 +135,9 @@ class CustomerServiceTest {
         assertEquals("Bob", customer.getFirstName());
         assertEquals("Jones", customer.getLastName());
         assertEquals("0698765432", profile.getPhoneNumber());
-        verify(userRepository).save(customer);
+        // Single save — cascade on CustomerProfile.user propagates the user update
         verify(customerProfileRepository).save(profile);
+        verify(userRepository, never()).save(any());
         // Status did not change to ACTIVE, so no accounts should be created.
         verify(accountService, never()).createAccountsForUser(any(), any(), any());
     }
@@ -146,7 +146,6 @@ class CustomerServiceTest {
     void updateCustomer_whenStatusChangesToActive_createsAccountsForUser() {
         when(userRepository.findById(1)).thenReturn(Optional.of(customer));
         when(customerProfileRepository.findByUser_Id(1)).thenReturn(profile);
-        when(userRepository.save(customer)).thenReturn(customer);
         when(customerProfileRepository.save(profile)).thenReturn(profile);
 
         // Activating a PENDING customer triggers account creation with the provided limits.
@@ -166,7 +165,6 @@ class CustomerServiceTest {
         profile.setStatus(CustomerStatus.ACTIVE);
         when(userRepository.findById(1)).thenReturn(Optional.of(customer));
         when(customerProfileRepository.findByUser_Id(1)).thenReturn(profile);
-        when(userRepository.save(customer)).thenReturn(customer);
         when(customerProfileRepository.save(profile)).thenReturn(profile);
 
         // Setting status to ACTIVE when already ACTIVE should not trigger account creation.
@@ -191,5 +189,21 @@ class CustomerServiceTest {
         // Verify no persistence occurred after the missing user check.
         verify(userRepository, never()).save(any());
         verify(customerProfileRepository, never()).save(any());
+    }
+
+    @Test
+    void updateCustomer_partialUpdate_onlyChangesProvidedFields() {
+        when(userRepository.findById(1)).thenReturn(Optional.of(customer));
+        when(customerProfileRepository.findByUser_Id(1)).thenReturn(profile);
+        when(customerProfileRepository.save(profile)).thenReturn(profile);
+
+        // Only firstName provided — lastName, phone, and status must remain unchanged.
+        CustomerUpdateRequest request = new CustomerUpdateRequest(null, "UpdatedFirst", null, null, null, null);
+        customerService.updateCustomer(1, request);
+
+        assertEquals("UpdatedFirst", customer.getFirstName());
+        assertEquals("Smith", customer.getLastName());         // unchanged
+        assertEquals("0612345678", profile.getPhoneNumber());  // unchanged
+        assertEquals(CustomerStatus.PENDING, profile.getStatus()); // unchanged
     }
 }
