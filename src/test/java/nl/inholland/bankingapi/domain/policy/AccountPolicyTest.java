@@ -52,11 +52,40 @@ class AccountPolicyTest {
         assertThrows(IllegalArgumentException.class, () -> accountPolicy.enforceCanClose(account));
     }
 
+    // --- enforceRequiredLimits ---
+
+    @Test
+    void enforceRequiredLimits_bothProvided_doesNotThrow() {
+        assertDoesNotThrow(() -> accountPolicy.enforceRequiredLimits(
+                new BigDecimal("500.00"), new BigDecimal("2000.00")));
+    }
+
+    @Test
+    void enforceRequiredLimits_missingAbsoluteLimit_throwsIllegalArgument() {
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> accountPolicy.enforceRequiredLimits(null, BigDecimal.ZERO));
+        assertTrue(ex.getMessage().contains("absoluteTransferLimit is required"));
+    }
+
+    @Test
+    void enforceRequiredLimits_missingDailyLimit_throwsIllegalArgument() {
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> accountPolicy.enforceRequiredLimits(BigDecimal.ZERO, null));
+        assertTrue(ex.getMessage().contains("dailyTransferLimit is required"));
+    }
+
+    @Test
+    void enforceRequiredLimits_negativeLimit_throwsIllegalArgument() {
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> accountPolicy.enforceRequiredLimits(new BigDecimal("-1.00"), BigDecimal.ZERO));
+        assertTrue(ex.getMessage().contains("absoluteTransferLimit"));
+    }
+
     // --- enforceValidLimits ---
 
     @Test
     void enforceValidLimits_bothNull_doesNotThrow() {
-        // Null means "do not update" — valid for PATCH requests
+        // null means "don't change this field" which is fine for a PATCH
         assertDoesNotThrow(() -> accountPolicy.enforceValidLimits(null, null));
     }
 
@@ -87,7 +116,7 @@ class AccountPolicyTest {
 
     @Test
     void enforceValidLimits_bothNegative_throwsOnFirstViolation() {
-        // The absolute limit is checked first; the first illegal argument throws immediately.
+        // absolute limit is validated first, so that's the one that throws
         assertThrows(IllegalArgumentException.class,
                 () -> accountPolicy.enforceValidLimits(new BigDecimal("-10"), new BigDecimal("-10")));
     }

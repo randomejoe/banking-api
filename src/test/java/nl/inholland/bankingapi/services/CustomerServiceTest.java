@@ -29,22 +29,19 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-// Registers Mockito with JUnit 5 so @Mock/@InjectMocks fields are created before each test.
 @ExtendWith(MockitoExtension.class)
 class CustomerServiceTest {
 
-    // Creates a Mockito test double instead of using a real repository implementation.
     @Mock
     private UserRepository userRepository;
 
     @Mock
     private CustomerProfileRepository customerProfileRepository;
 
-    // Mocked so we can verify account creation is triggered at the right moment.
+    // mocked so we can check whether account creation was called
     @Mock
     private AccountService accountService;
 
-    // Builds CustomerService and injects all @Mock fields into its constructor automatically.
     @InjectMocks
     private CustomerService customerService;
 
@@ -72,19 +69,17 @@ class CustomerServiceTest {
 
     @Test
     void getUserById_returnsUserWhenFound() {
-        // Stubbing: when this mock method is called, return predefined data.
         when(userRepository.findById(1)).thenReturn(Optional.of(customer));
 
         User result = customerService.getUserById(1);
 
         assertEquals(customer, result);
-        // Verification: assert that collaboration with the mock happened as expected.
         verify(userRepository).findById(1);
     }
 
     @Test
     void getUserById_returnsNullWhenNotFound() {
-        // Stub missing user to drive the orElse(null) branch.
+        // user doesn't exist
         when(userRepository.findById(99)).thenReturn(Optional.empty());
 
         User result = customerService.getUserById(99);
@@ -135,7 +130,7 @@ class CustomerServiceTest {
         assertEquals("Bob", customer.getFirstName());
         assertEquals("Jones", customer.getLastName());
         assertEquals("0698765432", profile.getPhoneNumber());
-        // Single save — cascade on CustomerProfile.user propagates the user update
+        // only the profile needs saving — user changes go through automatically in the transaction
         verify(customerProfileRepository).save(profile);
         verify(userRepository, never()).save(any());
         // Status did not change to ACTIVE, so no accounts should be created.
@@ -150,12 +145,12 @@ class CustomerServiceTest {
 
         // Activating a PENDING customer triggers account creation with the provided limits.
         CustomerUpdateRequest request = new CustomerUpdateRequest(
-                "ACTIVE", null, null, null,
+                CustomerStatus.ACTIVE, null, null, null,
                 new BigDecimal("1000.00"), new BigDecimal("5000.00"));
 
         customerService.updateCustomer(1, request);
 
-        // Verify account creation was triggered with the exact limits from the request.
+        // accounts should be created with the limits from the request
         verify(accountService).createAccountsForUser(
                 eq(customer), eq(new BigDecimal("1000.00")), eq(new BigDecimal("5000.00")));
     }
@@ -169,7 +164,7 @@ class CustomerServiceTest {
 
         // Setting status to ACTIVE when already ACTIVE should not trigger account creation.
         CustomerUpdateRequest request = new CustomerUpdateRequest(
-                "ACTIVE", null, null, null, null, null);
+                CustomerStatus.ACTIVE, null, null, null, null, null);
 
         customerService.updateCustomer(1, request);
 
@@ -179,14 +174,14 @@ class CustomerServiceTest {
     @Test
     void updateCustomer_whenUserNotFound_returnsNull() {
         when(userRepository.findById(99)).thenReturn(Optional.empty());
-        // Both lookups run before the null check, so the profile lookup also occurs.
+        // both lookups run before the null check
         when(customerProfileRepository.findByUser_Id(99)).thenReturn(null);
 
         CustomerUpdateRequest request = new CustomerUpdateRequest(null, "Bob", null, null, null, null);
         CustomerProfile result = customerService.updateCustomer(99, request);
 
         assertNull(result);
-        // Verify no persistence occurred after the missing user check.
+        // nothing should be saved if user not found
         verify(userRepository, never()).save(any());
         verify(customerProfileRepository, never()).save(any());
     }

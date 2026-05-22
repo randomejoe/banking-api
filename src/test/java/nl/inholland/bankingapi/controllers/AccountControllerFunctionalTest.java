@@ -31,12 +31,9 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-// Boots the full Spring application context so this test exercises real wiring.
 @SpringBootTest
-// Exposes MockMvc from the context, allowing HTTP-style endpoint testing without a real server.
 @AutoConfigureMockMvc
-// Wraps each test in a transaction and rolls it back afterward to keep database state isolated.
-@Transactional
+@Transactional // rolls back DB changes after each test
 class AccountControllerFunctionalTest {
 
     @Autowired
@@ -51,11 +48,10 @@ class AccountControllerFunctionalTest {
     @Autowired
     private AccountRepository accountRepository;
 
-    // Used to generate real JWT tokens so the JwtAuthenticationFilter authenticates correctly.
     @Autowired
     private JwtUtil jwtUtil;
 
-    // --- Helper methods ---
+    // --- helpers ---
 
     private User createCustomer(String email) {
         User user = new User();
@@ -94,7 +90,6 @@ class AccountControllerFunctionalTest {
         return accountRepository.save(account);
     }
 
-    // Generates a real Bearer token so the JwtAuthenticationFilter can authenticate the user.
     private String bearerToken(User user) {
         return "Bearer " + jwtUtil.generateToken(user);
     }
@@ -109,13 +104,11 @@ class AccountControllerFunctionalTest {
         createAccount(customer1, "FTACCTC101");
         createAccount(customer2, "FTACCTC201");
 
-        // The controller sets userId = currentUser.getId() for non-employees,
-        // so customer1's request is filtered to their own accounts only.
+        // customers are filtered to their own accounts
         mockMvc.perform(get("/accounts")
                         .header("Authorization", bearerToken(customer1)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content").isArray())
-                // Every account in the page must belong to customer1.
                 .andExpect(jsonPath("$.content[*].userId",
                         everyItem(is(customer1.getId()))));
     }
@@ -129,13 +122,11 @@ class AccountControllerFunctionalTest {
         createAccount(customer1, "FTACCTEMPC101");
         createAccount(customer2, "FTACCTEMPC201");
 
-        // Employees call getAll(null, ...) which applies no userId filter.
-        // size=100 ensures both test accounts appear on the first page.
+        // size=100 so both accounts show up on the first page
         mockMvc.perform(get("/accounts?size=100")
                         .header("Authorization", bearerToken(employee)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content").isArray())
-                // Both test customers' accounts must appear in the unfiltered employee view.
                 .andExpect(jsonPath("$.content[*].userId",
                         hasItems(customer1.getId(), customer2.getId())));
     }
@@ -212,7 +203,7 @@ class AccountControllerFunctionalTest {
         User employee = createEmployee("ac-patch-employee@example.com");
         Account account = createAccount(customer, "FTACCTPATCH01");
 
-        // Zero out the balance so the business rule ("Cannot close account with non-zero balance") is not triggered.
+        // must be zero before closing
         account.setBalance(BigDecimal.ZERO);
         accountRepository.save(account);
 
@@ -240,7 +231,7 @@ class AccountControllerFunctionalTest {
         Map<String, Object> request = new HashMap<>();
         request.put("status", "CLOSED");
 
-        // @PreAuthorize("hasRole('EMPLOYEE')") on PATCH rejects customers with 403.
+        // only employees can update accounts
         mockMvc.perform(patch("/accounts/{iban}", account.getIban())
                         .header("Authorization", bearerToken(customer))
                         .contentType(MediaType.APPLICATION_JSON)
@@ -254,7 +245,7 @@ class AccountControllerFunctionalTest {
         User employee = createEmployee("ac-empty-emp@example.com");
         Account account = createAccount(customer, "FTACCTEMPTY01");
 
-        // No fields provided — @AssertTrue hasAtLeastOneField on AccountUpdateRequest fails.
+        // empty body should fail validation
         mockMvc.perform(patch("/accounts/{iban}", account.getIban())
                         .header("Authorization", bearerToken(employee))
                         .contentType(MediaType.APPLICATION_JSON)
@@ -271,7 +262,7 @@ class AccountControllerFunctionalTest {
         Map<String, Object> request = new HashMap<>();
         request.put("absoluteTransferLimit", -1.00);
 
-        // @PositiveOrZero on absoluteTransferLimit rejects negative values.
+        // negative limits are not allowed
         mockMvc.perform(patch("/accounts/{iban}", account.getIban())
                         .header("Authorization", bearerToken(employee))
                         .contentType(MediaType.APPLICATION_JSON)
@@ -286,7 +277,7 @@ class AccountControllerFunctionalTest {
         Map<String, Object> request = new HashMap<>();
         request.put("absoluteTransferLimit", "500.00");
 
-        // No account exists with this IBAN — service throws ResourceNotFoundException → 404.
+        // unknown IBAN should be 404
         mockMvc.perform(patch("/accounts/NL99XXXX0000000000")
                         .header("Authorization", bearerToken(employee))
                         .contentType(MediaType.APPLICATION_JSON)

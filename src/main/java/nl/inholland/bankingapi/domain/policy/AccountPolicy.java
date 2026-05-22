@@ -14,6 +14,16 @@ public class AccountPolicy {
         }
     }
 
+    public void enforceRequiredLimits(BigDecimal absoluteTransferLimit, BigDecimal dailyTransferLimit) {
+        if (absoluteTransferLimit == null) {
+            throw new IllegalArgumentException("absoluteTransferLimit is required");
+        }
+        if (dailyTransferLimit == null) {
+            throw new IllegalArgumentException("dailyTransferLimit is required");
+        }
+        enforceValidLimits(absoluteTransferLimit, dailyTransferLimit);
+    }
+
     public void enforceValidLimits(BigDecimal absoluteTransferLimit, BigDecimal dailyTransferLimit) {
         if (absoluteTransferLimit != null && absoluteTransferLimit.compareTo(BigDecimal.ZERO) < 0) {
             throw new IllegalArgumentException("absoluteTransferLimit must be >= 0");

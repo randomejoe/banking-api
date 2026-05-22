@@ -26,26 +26,23 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-// Registers Mockito with JUnit 5 so @Mock/@InjectMocks fields are created before each test.
 @ExtendWith(MockitoExtension.class)
 class AuthServiceTest {
 
-    // Creates a Mockito test double instead of using a real repository implementation.
     @Mock
     private UserRepository userRepository;
 
     @Mock
     private CustomerProfileRepository customerProfileRepository;
 
-    // Mocked so we can control encode/matches without running BCrypt.
+    // mocked to avoid running real BCrypt in a unit test
     @Mock
     private PasswordEncoder passwordEncoder;
 
-    // Mocked so we can verify token generation calls without needing a real secret key.
+    // mocked so we don't need a real JWT secret
     @Mock
     private JwtUtil jwtUtil;
 
-    // Builds AuthService and injects all @Mock fields into its constructor automatically.
     @InjectMocks
     private AuthService authService;
 
@@ -71,9 +68,7 @@ class AuthServiceTest {
         RegisterRequest request = new RegisterRequest(
                 "new@example.com", RAW_PASSWORD, "Alice", "Smith", "123456789", "0612345678");
 
-        // Stub email check to simulate a free email address.
         when(userRepository.findByEmail("new@example.com")).thenReturn(Optional.empty());
-        // Stub encoder so we don't run real BCrypt in a unit test.
         when(passwordEncoder.encode(RAW_PASSWORD)).thenReturn(ENCODED_PASSWORD);
         when(userRepository.save(any(User.class))).thenReturn(customer);
 
@@ -83,7 +78,7 @@ class AuthServiceTest {
         verify(userRepository).findByEmail("new@example.com");
         verify(passwordEncoder).encode(RAW_PASSWORD);
         verify(userRepository).save(any(User.class));
-        // Customer profile must be persisted alongside the user during registration.
+        // profile should also be saved during registration
         verify(customerProfileRepository).save(any(CustomerProfile.class));
     }
 
@@ -92,12 +87,12 @@ class AuthServiceTest {
         RegisterRequest request = new RegisterRequest(
                 "auth@example.com", RAW_PASSWORD, "Alice", "Smith", "123456789", "0612345678");
 
-        // Stub email lookup to simulate an already-registered account.
+        // this email is already registered
         when(userRepository.findByEmail("auth@example.com")).thenReturn(Optional.of(customer));
 
         assertThrows(IllegalArgumentException.class, () -> authService.register(request));
 
-        // Verify no user or profile was persisted after the duplicate check failed.
+        // nothing should be saved if email is a duplicate
         verify(userRepository, never()).save(any());
         verify(customerProfileRepository, never()).save(any());
     }
@@ -107,7 +102,6 @@ class AuthServiceTest {
     @Test
     void login_happyPath_returnsUser() {
         when(userRepository.findByEmail("auth@example.com")).thenReturn(Optional.of(customer));
-        // Stub password check to simulate a matching password.
         when(passwordEncoder.matches(RAW_PASSWORD, ENCODED_PASSWORD)).thenReturn(true);
 
         User result = authService.login("auth@example.com", RAW_PASSWORD);
@@ -120,7 +114,7 @@ class AuthServiceTest {
     @Test
     void login_withWrongPassword_throwsUnauthorized() {
         when(userRepository.findByEmail("auth@example.com")).thenReturn(Optional.of(customer));
-        // Stub password check to simulate a mismatched password.
+        // wrong password
         when(passwordEncoder.matches("WrongPassword1!", ENCODED_PASSWORD)).thenReturn(false);
 
         ResponseStatusException exception = assertThrows(ResponseStatusException.class,
@@ -137,7 +131,7 @@ class AuthServiceTest {
                 () -> authService.login("nobody@example.com", RAW_PASSWORD));
 
         assertEquals(401, exception.getStatusCode().value());
-        // Verify password was never checked when the user does not exist.
+        // should fail before even checking the password
         verify(passwordEncoder, never()).matches(any(), any());
     }
 
@@ -145,7 +139,7 @@ class AuthServiceTest {
 
     @Test
     void generateToken_delegatesToJwtUtil() {
-        // Stub mapper so the service receives a predictable token string.
+        // control what token value is returned
         when(jwtUtil.generateToken(customer)).thenReturn("mocked.jwt.token");
 
         String token = authService.generateToken(customer);
