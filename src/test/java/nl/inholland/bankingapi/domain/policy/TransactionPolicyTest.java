@@ -5,6 +5,7 @@ import nl.inholland.bankingapi.entities.Account;
 import nl.inholland.bankingapi.entities.Transaction;
 import nl.inholland.bankingapi.entities.User;
 import nl.inholland.bankingapi.entities.enums.AccountStatus;
+import nl.inholland.bankingapi.entities.enums.AccountType;
 import nl.inholland.bankingapi.entities.enums.TransactionType;
 import nl.inholland.bankingapi.entities.enums.UserRole;
 import nl.inholland.bankingapi.exceptions.BadRequestException;
@@ -37,6 +38,8 @@ class TransactionPolicyTest {
 
     private Account activeFromAccount;
     private Account activeToAccount;
+    private Account otherCustomerCheckingAccount;
+    private Account otherCustomerSavingsAccount;
     private Account closedAccount;
     private User customerUser;
     private User employeeUser;
@@ -63,6 +66,7 @@ class TransactionPolicyTest {
 
         activeFromAccount = new Account();
         activeFromAccount.setIban(FROM_IBAN);
+        activeFromAccount.setType(AccountType.CHECKING);
         activeFromAccount.setStatus(AccountStatus.ACTIVE);
         activeFromAccount.setBalance(new BigDecimal("1000.00"));
         activeFromAccount.setAbsoluteTransferLimit(new BigDecimal("-500.00"));
@@ -71,11 +75,25 @@ class TransactionPolicyTest {
 
         activeToAccount = new Account();
         activeToAccount.setIban(TO_IBAN);
+        activeToAccount.setType(AccountType.SAVINGS);
         activeToAccount.setStatus(AccountStatus.ACTIVE);
         activeToAccount.setUser(customerUser);
 
+        otherCustomerCheckingAccount = new Account();
+        otherCustomerCheckingAccount.setIban("NL04BANK0000000004");
+        otherCustomerCheckingAccount.setType(AccountType.CHECKING);
+        otherCustomerCheckingAccount.setStatus(AccountStatus.ACTIVE);
+        otherCustomerCheckingAccount.setUser(otherCustomer);
+
+        otherCustomerSavingsAccount = new Account();
+        otherCustomerSavingsAccount.setIban("NL05BANK0000000005");
+        otherCustomerSavingsAccount.setType(AccountType.SAVINGS);
+        otherCustomerSavingsAccount.setStatus(AccountStatus.ACTIVE);
+        otherCustomerSavingsAccount.setUser(otherCustomer);
+
         closedAccount = new Account();
         closedAccount.setIban("NL03BANK0000000003");
+        closedAccount.setType(AccountType.CHECKING);
         closedAccount.setStatus(AccountStatus.CLOSED);
         closedAccount.setUser(customerUser);
     }
@@ -86,8 +104,8 @@ class TransactionPolicyTest {
     void enforceTransferPolicy_happyPath_doesNotThrow() {
         TransactionCreateRequest request = new TransactionCreateRequest(
                 FROM_IBAN, TO_IBAN, null, new BigDecimal("100.00"), TransactionType.TRANSFER, null);
-        when(transactionRepository.findByFromIbanAndTypeAndTimestampGreaterThanEqual(
-                eq(FROM_IBAN), eq(TransactionType.TRANSFER), any(LocalDateTime.class)))
+        when(transactionRepository.findByFromIbanAndTypeInAndTimestampGreaterThanEqual(
+                eq(FROM_IBAN), any(), any(LocalDateTime.class)))
                 .thenReturn(List.of());
 
         assertDoesNotThrow(
@@ -128,6 +146,43 @@ class TransactionPolicyTest {
 
         assertThrows(ResponseStatusException.class,
                 () -> transactionPolicy.enforceTransferPolicy(request, activeFromAccount, activeToAccount, otherCustomer));
+    }
+
+    @Test
+    void enforceTransferPolicy_allowsCustomerExternalTransferToCheckingAccount() {
+        TransactionCreateRequest request = new TransactionCreateRequest(
+                FROM_IBAN, otherCustomerCheckingAccount.getIban(), null,
+                new BigDecimal("100.00"), TransactionType.TRANSFER, null);
+        when(transactionRepository.findByFromIbanAndTypeInAndTimestampGreaterThanEqual(
+                eq(FROM_IBAN), any(), any(LocalDateTime.class)))
+                .thenReturn(List.of());
+
+        assertDoesNotThrow(
+                () -> transactionPolicy.enforceTransferPolicy(
+                        request, activeFromAccount, otherCustomerCheckingAccount, customerUser));
+    }
+
+    @Test
+    void enforceTransferPolicy_throwsWhenCustomerExternalTransferTargetsSavingsAccount() {
+        TransactionCreateRequest request = new TransactionCreateRequest(
+                FROM_IBAN, otherCustomerSavingsAccount.getIban(), null,
+                new BigDecimal("100.00"), TransactionType.TRANSFER, null);
+
+        assertThrows(BadRequestException.class,
+                () -> transactionPolicy.enforceTransferPolicy(
+                        request, activeFromAccount, otherCustomerSavingsAccount, customerUser));
+    }
+
+    @Test
+    void enforceTransferPolicy_allowsCustomerTransferBetweenOwnAccounts() {
+        TransactionCreateRequest request = new TransactionCreateRequest(
+                FROM_IBAN, TO_IBAN, null, new BigDecimal("100.00"), TransactionType.TRANSFER, null);
+        when(transactionRepository.findByFromIbanAndTypeInAndTimestampGreaterThanEqual(
+                eq(FROM_IBAN), any(), any(LocalDateTime.class)))
+                .thenReturn(List.of());
+
+        assertDoesNotThrow(
+                () -> transactionPolicy.enforceTransferPolicy(request, activeFromAccount, activeToAccount, customerUser));
     }
 
     @Test
@@ -174,8 +229,8 @@ class TransactionPolicyTest {
     void enforceWithdrawalPolicy_happyPath_doesNotThrow() {
         TransactionCreateRequest request = new TransactionCreateRequest(
                 FROM_IBAN, null, null, new BigDecimal("100.00"), TransactionType.WITHDRAWAL, null);
-        when(transactionRepository.findByFromIbanAndTypeAndTimestampGreaterThanEqual(
-                eq(FROM_IBAN), eq(TransactionType.TRANSFER), any(LocalDateTime.class)))
+        when(transactionRepository.findByFromIbanAndTypeInAndTimestampGreaterThanEqual(
+                eq(FROM_IBAN), any(), any(LocalDateTime.class)))
                 .thenReturn(List.of());
 
         assertDoesNotThrow(
@@ -249,8 +304,8 @@ class TransactionPolicyTest {
     void enforceDailyTransferLimit_throwsWhenDailyLimitExceeded() {
         Transaction existing = new Transaction();
         existing.setAmount(new BigDecimal("1500.00"));
-        when(transactionRepository.findByFromIbanAndTypeAndTimestampGreaterThanEqual(
-                eq(FROM_IBAN), eq(TransactionType.TRANSFER), any(LocalDateTime.class)))
+        when(transactionRepository.findByFromIbanAndTypeInAndTimestampGreaterThanEqual(
+                eq(FROM_IBAN), any(), any(LocalDateTime.class)))
                 .thenReturn(List.of(existing));
 
         // 1500 already transferred today + 600 new = 2100 > dailyTransferLimit of 2000
@@ -259,9 +314,23 @@ class TransactionPolicyTest {
     }
 
     @Test
+    void enforceDailyTransferLimit_countsPriorWithdrawals() {
+        Transaction existingWithdrawal = new Transaction();
+        existingWithdrawal.setAmount(new BigDecimal("1500.00"));
+        existingWithdrawal.setType(TransactionType.WITHDRAWAL);
+        when(transactionRepository.findByFromIbanAndTypeInAndTimestampGreaterThanEqual(
+                eq(FROM_IBAN), any(), any(LocalDateTime.class)))
+                .thenReturn(List.of(existingWithdrawal));
+
+        // 1500 already withdrawn today + 600 new = 2100 > dailyTransferLimit of 2000
+        assertThrows(BadRequestException.class,
+                () -> transactionPolicy.enforceDailyTransferLimit(activeFromAccount, new BigDecimal("600.00")));
+    }
+
+    @Test
     void enforceDailyTransferLimit_allowsWhenWithinDailyLimit() {
-        when(transactionRepository.findByFromIbanAndTypeAndTimestampGreaterThanEqual(
-                eq(FROM_IBAN), eq(TransactionType.TRANSFER), any(LocalDateTime.class)))
+        when(transactionRepository.findByFromIbanAndTypeInAndTimestampGreaterThanEqual(
+                eq(FROM_IBAN), any(), any(LocalDateTime.class)))
                 .thenReturn(List.of());
 
         // 0 transferred today + 500 = 500 < dailyTransferLimit of 2000

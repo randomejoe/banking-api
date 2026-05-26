@@ -1,13 +1,16 @@
 package nl.inholland.bankingapi.controllers;
 
 import nl.inholland.bankingapi.entities.Account;
+import nl.inholland.bankingapi.entities.CustomerProfile;
 import nl.inholland.bankingapi.entities.Transaction;
 import nl.inholland.bankingapi.entities.User;
 import nl.inholland.bankingapi.entities.enums.AccountStatus;
 import nl.inholland.bankingapi.entities.enums.AccountType;
+import nl.inholland.bankingapi.entities.enums.CustomerStatus;
 import nl.inholland.bankingapi.entities.enums.TransactionType;
 import nl.inholland.bankingapi.entities.enums.UserRole;
 import nl.inholland.bankingapi.repositories.AccountRepository;
+import nl.inholland.bankingapi.repositories.CustomerProfileRepository;
 import nl.inholland.bankingapi.repositories.TransactionRepository;
 import nl.inholland.bankingapi.repositories.UserRepository;
 import nl.inholland.bankingapi.util.JwtUtil;
@@ -53,6 +56,9 @@ class TransactionControllerFunctionalTest {
     private TransactionRepository transactionRepository;
 
     @Autowired
+    private CustomerProfileRepository customerProfileRepository;
+
+    @Autowired
     private JwtUtil jwtUtil;
 
     // --- helpers ---
@@ -64,7 +70,18 @@ class TransactionControllerFunctionalTest {
         user.setFirstName("Test");
         user.setLastName("Customer");
         user.setRole(UserRole.CUSTOMER);
-        return userRepository.save(user);
+        User saved = userRepository.save(user);
+        createProfile(saved, CustomerStatus.ACTIVE);
+        return saved;
+    }
+
+    private CustomerProfile createProfile(User user, CustomerStatus status) {
+        CustomerProfile profile = new CustomerProfile();
+        profile.setUser(user);
+        profile.setBsn(String.format("%09d", user.getId()));
+        profile.setPhoneNumber("0612345678");
+        profile.setStatus(status);
+        return customerProfileRepository.save(profile);
     }
 
     private User createEmployee(String email) {
@@ -78,10 +95,14 @@ class TransactionControllerFunctionalTest {
     }
 
     private Account createAccount(User owner, String iban) {
+        return createAccount(owner, iban, AccountType.CHECKING);
+    }
+
+    private Account createAccount(User owner, String iban, AccountType type) {
         Account account = new Account();
         account.setUser(owner);
         account.setIban(iban);
-        account.setType(AccountType.CHECKING);
+        account.setType(type);
         account.setBalance(new BigDecimal("1000.00"));
         account.setAbsoluteTransferLimit(new BigDecimal("-500.00"));
         account.setDailyTransferLimit(new BigDecimal("5000.00"));
@@ -146,6 +167,66 @@ class TransactionControllerFunctionalTest {
     }
 
     @Test
+    void createTransaction_pendingCustomerGetsForbidden() throws Exception {
+        User customer = createCustomer("ft-pending@example.com");
+        CustomerProfile profile = customerProfileRepository.findByUser_Id(customer.getId());
+        profile.setStatus(CustomerStatus.PENDING);
+        customerProfileRepository.save(profile);
+        Account toAccount = createAccount(customer, "FT-IBAN-PENDING-01");
+
+        Map<String, Object> request = new HashMap<>();
+        request.put("toIban", toAccount.getIban());
+        request.put("amount", "100.00");
+        request.put("type", "DEPOSIT");
+
+        mockMvc.perform(post("/transactions")
+                        .header("Authorization", bearerToken(customer))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void createTransaction_closedCustomerGetsForbidden() throws Exception {
+        User customer = createCustomer("ft-closed@example.com");
+        CustomerProfile profile = customerProfileRepository.findByUser_Id(customer.getId());
+        profile.setStatus(CustomerStatus.CLOSED);
+        customerProfileRepository.save(profile);
+        Account toAccount = createAccount(customer, "FT-IBAN-CLOSED-01");
+
+        Map<String, Object> request = new HashMap<>();
+        request.put("toIban", toAccount.getIban());
+        request.put("amount", "100.00");
+        request.put("type", "DEPOSIT");
+
+        mockMvc.perform(post("/transactions")
+                        .header("Authorization", bearerToken(customer))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void createTransaction_customerExternalTransferToSavingsAccountReturns400() throws Exception {
+        User sender = createCustomer("ft-external-sender@example.com");
+        User recipient = createCustomer("ft-external-recipient@example.com");
+        Account fromAccount = createAccount(sender, "FT-IBAN-EXT-FROM");
+        Account toSavingsAccount = createAccount(recipient, "FT-IBAN-EXT-SAV", AccountType.SAVINGS);
+
+        Map<String, Object> request = new HashMap<>();
+        request.put("fromIban", fromAccount.getIban());
+        request.put("toIban", toSavingsAccount.getIban());
+        request.put("amount", "100.00");
+        request.put("type", "TRANSFER");
+
+        mockMvc.perform(post("/transactions")
+                        .header("Authorization", bearerToken(sender))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
     void createTransaction_withoutAuthentication_returns401() throws Exception {
         Map<String, Object> request = new HashMap<>();
         request.put("toIban", "FT-IBAN-ANY");
@@ -202,6 +283,34 @@ class TransactionControllerFunctionalTest {
                 .andExpect(jsonPath("$.id").value(transaction.getId()));
     }
 
+    @Test
+    void getTransactionById_pendingCustomerGetsForbidden() throws Exception {
+        User customer = createCustomer("ft-detail-pending@example.com");
+        Transaction transaction = createTransaction(
+                customer, null, "FT-IBAN-PENDING-DETAIL", TransactionType.DEPOSIT, new BigDecimal("60.00"));
+        CustomerProfile profile = customerProfileRepository.findByUser_Id(customer.getId());
+        profile.setStatus(CustomerStatus.PENDING);
+        customerProfileRepository.save(profile);
+
+        mockMvc.perform(get("/transactions/{id}", transaction.getId())
+                        .header("Authorization", bearerToken(customer)))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void getTransactionById_closedCustomerGetsForbidden() throws Exception {
+        User customer = createCustomer("ft-detail-closed@example.com");
+        Transaction transaction = createTransaction(
+                customer, null, "FT-IBAN-CLOSED-DETAIL", TransactionType.DEPOSIT, new BigDecimal("60.00"));
+        CustomerProfile profile = customerProfileRepository.findByUser_Id(customer.getId());
+        profile.setStatus(CustomerStatus.CLOSED);
+        customerProfileRepository.save(profile);
+
+        mockMvc.perform(get("/transactions/{id}", transaction.getId())
+                        .header("Authorization", bearerToken(customer)))
+                .andExpect(status().isForbidden());
+    }
+
     // --- GET /transactions ---
 
     @Test
@@ -219,5 +328,17 @@ class TransactionControllerFunctionalTest {
                 .andExpect(jsonPath("$.content").isArray())
                 .andExpect(jsonPath("$.content[*].initiatedByUserId",
                         everyItem(is(customer1.getId()))));
+    }
+
+    @Test
+    void getTransactions_pendingCustomerGetsForbidden() throws Exception {
+        User customer = createCustomer("ft-history-pending@example.com");
+        CustomerProfile profile = customerProfileRepository.findByUser_Id(customer.getId());
+        profile.setStatus(CustomerStatus.PENDING);
+        customerProfileRepository.save(profile);
+
+        mockMvc.perform(get("/transactions")
+                        .header("Authorization", bearerToken(customer)))
+                .andExpect(status().isForbidden());
     }
 }

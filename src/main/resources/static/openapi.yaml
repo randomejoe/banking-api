@@ -144,11 +144,13 @@ paths:
             type: string
       responses:
         '200':
-          description: Page of accounts
+          description: Page of account details, or safe transfer-target search results for customer name lookup
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/AccountPage'
+                oneOf:
+                  - $ref: '#/components/schemas/AccountPage'
+                  - $ref: '#/components/schemas/AccountSearchPage'
         '401':
           description: Not authenticated
           content:
@@ -721,6 +723,17 @@ components:
         status:
           $ref: '#/components/schemas/AccountStatus'
 
+    AccountSearchResponse:
+      type: object
+      description: Safe customer-facing transfer target result. Does not expose balances or limits.
+      properties:
+        iban:
+          type: string
+        firstName:
+          type: string
+        lastName:
+          type: string
+
     CustomerSummaryResponse:
       type: object
       properties:
@@ -828,6 +841,16 @@ components:
               type: array
               items:
                 $ref: '#/components/schemas/AccountResponse'
+
+    AccountSearchPage:
+      allOf:
+        - $ref: '#/components/schemas/PageMetadata'
+        - type: object
+          properties:
+            content:
+              type: array
+              items:
+                $ref: '#/components/schemas/AccountSearchResponse'
 
     CustomerSummaryPage:
       allOf:

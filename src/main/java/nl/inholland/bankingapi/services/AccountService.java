@@ -65,6 +65,10 @@ public class AccountService {
         return getAll(accountAccessPolicy.effectiveQueryFor(currentUser, query), pageable);
     }
 
+    public Page<Account> searchTransferTargets(User currentUser, String name, Pageable pageable) {
+        return accountRepository.findTransferTargetsByCustomerName(currentUser.getId(), name.trim(), pageable);
+    }
+
     public Account getByIban(String iban) {
         return accountRepository.findByIban(iban)
                 .orElseThrow(() -> new ResourceNotFoundException("Account not found: " + iban));

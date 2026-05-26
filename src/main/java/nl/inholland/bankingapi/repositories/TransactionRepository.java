@@ -11,14 +11,15 @@ import org.springframework.stereotype.Repository;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
 
 @Repository
 public interface TransactionRepository extends JpaRepository<Transaction, Integer> {
 
-    // Used by the daily transfer limit check in TransactionService
-    List<Transaction> findByFromIbanAndTypeAndTimestampGreaterThanEqual(
-            String iban, TransactionType type, LocalDateTime since);
+    // Used by the daily outgoing limit check in TransactionPolicy
+    List<Transaction> findByFromIbanAndTypeInAndTimestampGreaterThanEqual(
+            String iban, Collection<TransactionType> types, LocalDateTime since);
 
     // Used by GET /transactions — all filters are optional; null = no filter
     @Query("SELECT t FROM Transaction t WHERE " +
