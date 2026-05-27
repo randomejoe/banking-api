@@ -26,6 +26,8 @@ import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -101,13 +103,50 @@ class TransactionServiceTest {
         TransactionFilterParams filters = new TransactionFilterParams();
         Pageable pageable = Pageable.unpaged();
         Page<Transaction> expected = new PageImpl<>(List.of(transaction));
-        when(transactionRepository.findAllFiltered(any(), any(), any(), any(), any(), eq(pageable)))
+        when(transactionRepository.findAllFiltered(any(), any(), any(), any(), any(), any(), any(), eq(pageable)))
                 .thenReturn(expected);
 
         Page<Transaction> result = transactionService.getAll(filters, pageable);
 
         assertEquals(expected, result);
-        verify(transactionRepository).findAllFiltered(any(), any(), any(), any(), any(), eq(pageable));
+        verify(transactionRepository).findAllFiltered(any(), any(), any(), any(), any(), any(), any(), eq(pageable));
+    }
+
+    @Test
+    void getAll_convertsDateRangeToInclusiveDayBounds() {
+        TransactionFilterParams filters = new TransactionFilterParams();
+        filters.setStartDate(LocalDate.of(2026, 5, 1));
+        filters.setEndDate(LocalDate.of(2026, 5, 3));
+        Pageable pageable = Pageable.unpaged();
+        Page<Transaction> expected = new PageImpl<>(List.of(transaction));
+        when(transactionRepository.findAllFiltered(
+                any(), any(), any(), any(), any(),
+                eq(LocalDateTime.of(2026, 5, 1, 0, 0)),
+                eq(LocalDateTime.of(2026, 5, 4, 0, 0)),
+                eq(pageable)))
+                .thenReturn(expected);
+
+        Page<Transaction> result = transactionService.getAll(filters, pageable);
+
+        assertEquals(expected, result);
+        verify(transactionRepository).findAllFiltered(
+                any(), any(), any(), any(), any(),
+                eq(LocalDateTime.of(2026, 5, 1, 0, 0)),
+                eq(LocalDateTime.of(2026, 5, 4, 0, 0)),
+                eq(pageable));
+    }
+
+    @Test
+    void getAll_throwsWhenStartDateIsAfterEndDate() {
+        TransactionFilterParams filters = new TransactionFilterParams();
+        filters.setStartDate(LocalDate.of(2026, 5, 4));
+        filters.setEndDate(LocalDate.of(2026, 5, 3));
+
+        BadRequestException exception = assertThrows(BadRequestException.class,
+                () -> transactionService.getAll(filters, Pageable.unpaged()));
+
+        assertEquals("startDate must be on or before endDate", exception.getMessage());
+        verify(transactionRepository, never()).findAllFiltered(any(), any(), any(), any(), any(), any(), any(), any());
     }
 
     // --- getById ---

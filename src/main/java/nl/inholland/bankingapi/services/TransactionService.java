@@ -7,6 +7,7 @@ import nl.inholland.bankingapi.entities.Account;
 import nl.inholland.bankingapi.entities.Transaction;
 import nl.inholland.bankingapi.entities.User;
 import nl.inholland.bankingapi.entities.enums.TransactionType;
+import nl.inholland.bankingapi.exceptions.BadRequestException;
 import nl.inholland.bankingapi.exceptions.ResourceNotFoundException;
 import nl.inholland.bankingapi.mappers.TransactionMapper;
 import nl.inholland.bankingapi.repositories.AccountRepository;
@@ -38,12 +39,26 @@ public class TransactionService {
     }
 
     public Page<Transaction> getAll(TransactionFilterParams filters, Pageable pageable) {
+        if (filters.getStartDate() != null && filters.getEndDate() != null
+                && filters.getStartDate().isAfter(filters.getEndDate())) {
+            throw new BadRequestException("startDate must be on or before endDate");
+        }
+
+        LocalDateTime startDateTime = filters.getStartDate() == null
+                ? null
+                : filters.getStartDate().atStartOfDay();
+        LocalDateTime endDateExclusive = filters.getEndDate() == null
+                ? null
+                : filters.getEndDate().plusDays(1).atStartOfDay();
+
         return transactionRepository.findAllFiltered(
                 filters.getIban(),
                 filters.getType(),
                 filters.getMinAmount(),
                 filters.getMaxAmount(),
                 filters.getCustomerId(),
+                startDateTime,
+                endDateExclusive,
                 pageable
         );
     }

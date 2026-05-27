@@ -381,6 +381,22 @@ paths:
           required: false
           schema:
             type: number
+        - name: startDate
+          in: query
+          required: false
+          description: Include transactions on or after this date.
+          schema:
+            type: string
+            format: date
+            example: '2026-05-01'
+        - name: endDate
+          in: query
+          required: false
+          description: Include transactions on or before this date.
+          schema:
+            type: string
+            format: date
+            example: '2026-05-31'
         - name: page
           in: query
           required: false

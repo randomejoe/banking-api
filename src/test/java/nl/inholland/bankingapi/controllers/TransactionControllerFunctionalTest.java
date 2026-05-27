@@ -113,13 +113,19 @@ class TransactionControllerFunctionalTest {
 
     private Transaction createTransaction(User initiatedBy, String fromIban, String toIban,
                                           TransactionType type, BigDecimal amount) {
+        return createTransaction(initiatedBy, fromIban, toIban, type, amount, LocalDateTime.now());
+    }
+
+    private Transaction createTransaction(User initiatedBy, String fromIban, String toIban,
+                                          TransactionType type, BigDecimal amount,
+                                          LocalDateTime timestamp) {
         Transaction transaction = new Transaction();
         transaction.setInitiatedBy(initiatedBy);
         transaction.setFromIban(fromIban);
         transaction.setToIban(toIban);
         transaction.setType(type);
         transaction.setAmount(amount);
-        transaction.setTimestamp(LocalDateTime.now());
+        transaction.setTimestamp(timestamp);
         return transactionRepository.save(transaction);
     }
 
@@ -328,6 +334,44 @@ class TransactionControllerFunctionalTest {
                 .andExpect(jsonPath("$.content").isArray())
                 .andExpect(jsonPath("$.content[*].initiatedByUserId",
                         everyItem(is(customer1.getId()))));
+    }
+
+    @Test
+    void getTransactions_filtersByInclusiveDateRange() throws Exception {
+        User customer = createCustomer("ft-date-filter@example.com");
+        Transaction before = createTransaction(customer, null, "FT-IBAN-DATE-OLD",
+                TransactionType.DEPOSIT, new BigDecimal("100.00"),
+                LocalDateTime.of(2026, 5, 1, 23, 59));
+        Transaction firstDay = createTransaction(customer, null, "FT-IBAN-DATE-START",
+                TransactionType.DEPOSIT, new BigDecimal("200.00"),
+                LocalDateTime.of(2026, 5, 2, 0, 0));
+        Transaction lastDay = createTransaction(customer, null, "FT-IBAN-DATE-END",
+                TransactionType.DEPOSIT, new BigDecimal("300.00"),
+                LocalDateTime.of(2026, 5, 3, 23, 59));
+        Transaction after = createTransaction(customer, null, "FT-IBAN-DATE-NEW",
+                TransactionType.DEPOSIT, new BigDecimal("400.00"),
+                LocalDateTime.of(2026, 5, 4, 0, 0));
+
+        mockMvc.perform(get("/transactions")
+                        .param("startDate", "2026-05-02")
+                        .param("endDate", "2026-05-03")
+                        .header("Authorization", bearerToken(customer)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[?(@.id == " + firstDay.getId() + ")]").exists())
+                .andExpect(jsonPath("$.content[?(@.id == " + lastDay.getId() + ")]").exists())
+                .andExpect(jsonPath("$.content[?(@.id == " + before.getId() + ")]").doesNotExist())
+                .andExpect(jsonPath("$.content[?(@.id == " + after.getId() + ")]").doesNotExist());
+    }
+
+    @Test
+    void getTransactions_withStartDateAfterEndDateReturns400() throws Exception {
+        User customer = createCustomer("ft-date-filter-invalid@example.com");
+
+        mockMvc.perform(get("/transactions")
+                        .param("startDate", "2026-05-04")
+                        .param("endDate", "2026-05-03")
+                        .header("Authorization", bearerToken(customer)))
+                .andExpect(status().isBadRequest());
     }
 
     @Test
