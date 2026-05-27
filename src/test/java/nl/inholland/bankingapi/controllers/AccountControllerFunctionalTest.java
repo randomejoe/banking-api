@@ -1,10 +1,13 @@
 package nl.inholland.bankingapi.controllers;
 import nl.inholland.bankingapi.entities.Account;
+import nl.inholland.bankingapi.entities.CustomerProfile;
 import nl.inholland.bankingapi.entities.User;
 import nl.inholland.bankingapi.entities.enums.AccountStatus;
 import nl.inholland.bankingapi.entities.enums.AccountType;
+import nl.inholland.bankingapi.entities.enums.CustomerStatus;
 import nl.inholland.bankingapi.entities.enums.UserRole;
 import nl.inholland.bankingapi.repositories.AccountRepository;
+import nl.inholland.bankingapi.repositories.CustomerProfileRepository;
 import nl.inholland.bankingapi.repositories.UserRepository;
 import nl.inholland.bankingapi.util.JwtUtil;
 import tools.jackson.databind.ObjectMapper;
@@ -49,6 +52,9 @@ class AccountControllerFunctionalTest {
     private AccountRepository accountRepository;
 
     @Autowired
+    private CustomerProfileRepository customerProfileRepository;
+
+    @Autowired
     private JwtUtil jwtUtil;
 
     // --- helpers ---
@@ -60,7 +66,18 @@ class AccountControllerFunctionalTest {
         user.setFirstName("Test");
         user.setLastName("Customer");
         user.setRole(UserRole.CUSTOMER);
-        return userRepository.save(user);
+        User saved = userRepository.save(user);
+        createProfile(saved, CustomerStatus.ACTIVE);
+        return saved;
+    }
+
+    private CustomerProfile createProfile(User user, CustomerStatus status) {
+        CustomerProfile profile = new CustomerProfile();
+        profile.setUser(user);
+        profile.setBsn(String.format("%09d", user.getId()));
+        profile.setPhoneNumber("0612345678");
+        profile.setStatus(status);
+        return customerProfileRepository.save(profile);
     }
 
     private User createEmployee(String email) {
@@ -149,6 +166,71 @@ class AccountControllerFunctionalTest {
     }
 
     @Test
+    void getAccounts_customerCanSearchOtherCustomerCheckingIbanByNameWithSafeFieldsOnly() throws Exception {
+        User searchingCustomer = createCustomer("ac-lookup-searcher@example.com");
+        User matchingCustomer = createCustomer("ac-lookup-match@example.com");
+
+        matchingCustomer.setFirstName("Recipient");
+        matchingCustomer.setLastName("Lookup");
+        userRepository.save(matchingCustomer);
+
+        createAccount(searchingCustomer, "FTACCTLOOKUPOWN");
+        createAccount(matchingCustomer, "FTACCTLOOKUPCHK", AccountType.CHECKING, AccountStatus.ACTIVE);
+        createAccount(matchingCustomer, "FTACCTLOOKUPSAV", AccountType.SAVINGS, AccountStatus.ACTIVE);
+
+        mockMvc.perform(get("/accounts?name=Recipient&size=100")
+                        .header("Authorization", bearerToken(searchingCustomer)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content.length()").value(1))
+                .andExpect(jsonPath("$.content[0].iban").value("FTACCTLOOKUPCHK"))
+                .andExpect(jsonPath("$.content[0].firstName").value("Recipient"))
+                .andExpect(jsonPath("$.content[0].lastName").value("Lookup"))
+                .andExpect(jsonPath("$.content[0].balance").doesNotExist())
+                .andExpect(jsonPath("$.content[0].absoluteTransferLimit").doesNotExist())
+                .andExpect(jsonPath("$.content[0].dailyTransferLimit").doesNotExist());
+    }
+
+    @Test
+    void getAccounts_customerLookupHidesInactiveCheckingAccounts() throws Exception {
+        User searchingCustomer = createCustomer("ac-lookup-inactive-searcher@example.com");
+        User matchingCustomer = createCustomer("ac-lookup-inactive-match@example.com");
+
+        matchingCustomer.setFirstName("Inactive");
+        matchingCustomer.setLastName("Lookup");
+        userRepository.save(matchingCustomer);
+
+        createAccount(matchingCustomer, "FTACCTINACTIVECHK", AccountType.CHECKING, AccountStatus.CLOSED);
+
+        mockMvc.perform(get("/accounts?name=Inactive&size=100")
+                        .header("Authorization", bearerToken(searchingCustomer)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content.length()").value(0));
+    }
+
+    @Test
+    void getAccounts_customerLookupIgnoresPrivateAccountFiltersAndKeepsSafeSearchShape() throws Exception {
+        User searchingCustomer = createCustomer("ac-lookup-filter-searcher@example.com");
+        User matchingCustomer = createCustomer("ac-lookup-filter-match@example.com");
+
+        matchingCustomer.setFirstName("Filtered");
+        matchingCustomer.setLastName("Lookup");
+        userRepository.save(matchingCustomer);
+
+        createAccount(searchingCustomer, "FTACCTFILTEROWN");
+        createAccount(matchingCustomer, "FTACCTFILTERCHK", AccountType.CHECKING, AccountStatus.ACTIVE);
+
+        mockMvc.perform(get("/accounts?name=Filtered&userId=" + searchingCustomer.getId() + "&type=SAVINGS&status=CLOSED&size=100")
+                        .header("Authorization", bearerToken(searchingCustomer)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content.length()").value(1))
+                .andExpect(jsonPath("$.content[0].iban").value("FTACCTFILTERCHK"))
+                .andExpect(jsonPath("$.content[0].firstName").value("Filtered"))
+                .andExpect(jsonPath("$.content[0].lastName").value("Lookup"))
+                .andExpect(jsonPath("$.content[0].userId").doesNotExist())
+                .andExpect(jsonPath("$.content[0].balance").doesNotExist());
+    }
+
+    @Test
     void getAccounts_employeeCanSearchAccountsByCustomerName() throws Exception {
         User matchingCustomer = createCustomer("ac-search-match@example.com");
         User otherCustomer = createCustomer("ac-search-other@example.com");
@@ -193,6 +275,34 @@ class AccountControllerFunctionalTest {
         // No Authorization header — Spring Security rejects the request before reaching the controller.
         mockMvc.perform(get("/accounts"))
                 .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void getAccounts_pendingCustomerGetsForbidden() throws Exception {
+        User customer = createCustomer("ac-pending@example.com");
+        CustomerProfile profile = customerProfileRepository.findByUser_Id(customer.getId());
+        profile.setStatus(CustomerStatus.PENDING);
+        customerProfileRepository.save(profile);
+
+        createAccount(customer, "FTACCTPENDING01");
+
+        mockMvc.perform(get("/accounts")
+                        .header("Authorization", bearerToken(customer)))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void getAccounts_closedCustomerGetsForbidden() throws Exception {
+        User customer = createCustomer("ac-closed@example.com");
+        CustomerProfile profile = customerProfileRepository.findByUser_Id(customer.getId());
+        profile.setStatus(CustomerStatus.CLOSED);
+        customerProfileRepository.save(profile);
+
+        createAccount(customer, "FTACCTCLOSED01");
+
+        mockMvc.perform(get("/accounts")
+                        .header("Authorization", bearerToken(customer)))
+                .andExpect(status().isForbidden());
     }
 
     // --- PATCH /accounts/{iban} ---

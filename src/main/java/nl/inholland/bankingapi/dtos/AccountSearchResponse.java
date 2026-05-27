@@ -4,4 +4,4 @@ public record AccountSearchResponse(
         String iban,
         String firstName,
         String lastName
-) {}
+) implements AccountListItemResponse {}

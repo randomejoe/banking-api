@@ -15,4 +15,4 @@ public record AccountResponse(
         BigDecimal dailyTransferLimit,
         AccountStatus status,
         LocalDateTime createdAt
-) {}
+) implements AccountListItemResponse {}

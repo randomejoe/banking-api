@@ -5,6 +5,7 @@ import nl.inholland.bankingapi.entities.Account;
 import nl.inholland.bankingapi.entities.Transaction;
 import nl.inholland.bankingapi.entities.User;
 import nl.inholland.bankingapi.entities.enums.AccountStatus;
+import nl.inholland.bankingapi.entities.enums.AccountType;
 import nl.inholland.bankingapi.entities.enums.TransactionType;
 import nl.inholland.bankingapi.entities.enums.UserRole;
 import nl.inholland.bankingapi.exceptions.BadRequestException;
@@ -20,6 +21,9 @@ import java.time.LocalDateTime;
 @Component
 public class TransactionPolicy {
 
+    private static final java.util.List<TransactionType> OUTGOING_LIMIT_TYPES =
+            java.util.List.of(TransactionType.TRANSFER, TransactionType.WITHDRAWAL);
+
     private final TransactionRepository transactionRepository;
 
     public TransactionPolicy(TransactionRepository transactionRepository) {
@@ -34,6 +38,7 @@ public class TransactionPolicy {
         enforceAccountIsActive(fromAccount, "Source");
         enforceAccountIsActive(toAccount, "Destination");
         enforceSourceAccountOwner(fromAccount, initiatedBy);
+        enforceExternalCustomerTransferTargetsChecking(fromAccount, toAccount, initiatedBy);
         enforceAbsoluteTransferLimit(fromAccount, request.amount());
         enforceDailyTransferLimit(fromAccount, request.amount());
     }
@@ -92,6 +97,18 @@ public class TransactionPolicy {
         }
     }
 
+    public void enforceExternalCustomerTransferTargetsChecking(Account fromAccount, Account toAccount, User initiatedBy) {
+        if (initiatedBy.getRole() == UserRole.EMPLOYEE) {
+            return;
+        }
+        if (fromAccount.getUser().getId() == toAccount.getUser().getId()) {
+            return;
+        }
+        if (toAccount.getType() != AccountType.CHECKING) {
+            throw new BadRequestException("External transfers must target a checking account");
+        }
+    }
+
     public void enforceAbsoluteTransferLimit(Account from, BigDecimal amount) {
         BigDecimal balanceAfter = from.getBalance().subtract(amount);
         if (balanceAfter.compareTo(from.getAbsoluteTransferLimit()) < 0) {
@@ -102,14 +119,14 @@ public class TransactionPolicy {
 
     public void enforceDailyTransferLimit(Account from, BigDecimal amount) {
         LocalDateTime startOfDay = LocalDate.now().atStartOfDay();
-        BigDecimal transferredToday = transactionRepository
-                .findByFromIbanAndTypeAndTimestampGreaterThanEqual(from.getIban(), TransactionType.TRANSFER, startOfDay)
+        BigDecimal outgoingToday = transactionRepository
+                .findByFromIbanAndTypeInAndTimestampGreaterThanEqual(from.getIban(), OUTGOING_LIMIT_TYPES, startOfDay)
                 .stream()
                 .map(Transaction::getAmount)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
-        if (transferredToday.add(amount).compareTo(from.getDailyTransferLimit()) > 0) {
+        if (outgoingToday.add(amount).compareTo(from.getDailyTransferLimit()) > 0) {
             throw new BadRequestException(
-                    "Transfer would exceed the daily transfer limit for account: " + from.getIban());
+                    "Transaction would exceed the daily transfer limit for account: " + from.getIban());
         }
     }
 
