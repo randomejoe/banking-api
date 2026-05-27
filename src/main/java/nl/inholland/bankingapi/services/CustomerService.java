@@ -3,6 +3,8 @@ package nl.inholland.bankingapi.services;
 import nl.inholland.bankingapi.entities.CustomerProfile;
 import nl.inholland.bankingapi.entities.User;
 import nl.inholland.bankingapi.entities.enums.CustomerStatus;
+import nl.inholland.bankingapi.entities.enums.UserRole;
+import nl.inholland.bankingapi.exceptions.ResourceNotFoundException;
 import nl.inholland.bankingapi.repositories.CustomerProfileRepository;
 import nl.inholland.bankingapi.repositories.UserRepository;
 import org.springframework.stereotype.Service;
@@ -43,8 +45,22 @@ public class CustomerService {
         return userRepository.findById(id).orElse(null);
     }
 
+    public User getCustomerUserById(int id) {
+        return userRepository.findById(id)
+                .filter(user -> user.getRole() == UserRole.CUSTOMER)
+                .orElseThrow(() -> customerNotFound(id));
+    }
+
     public CustomerProfile getProfileByUserId(int userId) {
         return customerProfileRepository.findByUser_Id(userId);
+    }
+
+    public CustomerProfile getRequiredProfileByUserId(int userId) {
+        CustomerProfile profile = getProfileByUserId(userId);
+        if (profile == null) {
+            throw new ResourceNotFoundException("Customer profile not found: " + userId);
+        }
+        return profile;
     }
 
     public Page<User> getAllCustomers(CustomerStatus status, String search, Pageable pageable) {
@@ -60,9 +76,8 @@ public class CustomerService {
 
     @Transactional
     public CustomerProfile updateCustomer(int userId, CustomerUpdateRequest request) {
-        User user = getUserById(userId);
-        CustomerProfile profile = getProfileByUserId(userId);
-        if (user == null || profile == null) return null;
+        User user = getCustomerUserById(userId);
+        CustomerProfile profile = getRequiredProfileByUserId(userId);
 
         CustomerStatus previousStatus = profile.getStatus();
         CustomerStatus newStatus = request.status();
@@ -83,10 +98,14 @@ public class CustomerService {
     private void provisionAccountsIfActivated(User user, CustomerStatus previousStatus,
                                                CustomerStatus newStatus, CustomerUpdateRequest request) {
         if (newStatus != CustomerStatus.ACTIVE || previousStatus == CustomerStatus.ACTIVE) return;
-        BigDecimal absLimit   = request.absoluteTransferLimit()  != null
-                ? request.absoluteTransferLimit()  : defaultAbsoluteTransferLimit;
-        BigDecimal dailyLimit = request.dailyTransferLimit()     != null
-                ? request.dailyTransferLimit()     : defaultDailyTransferLimit;
+        BigDecimal absLimit = request.absoluteTransferLimit() != null
+                ? request.absoluteTransferLimit() : defaultAbsoluteTransferLimit;
+        BigDecimal dailyLimit = request.dailyTransferLimit() != null
+                ? request.dailyTransferLimit() : defaultDailyTransferLimit;
         accountService.createAccountsForUser(user, absLimit, dailyLimit);
+    }
+
+    private ResourceNotFoundException customerNotFound(int id) {
+        return new ResourceNotFoundException("Customer not found: " + id);
     }
 }
