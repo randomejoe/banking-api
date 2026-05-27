@@ -23,9 +23,11 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.hasSize;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -172,6 +174,26 @@ class UserControllerFunctionalTest {
                 .andExpect(jsonPath("$.email").value(customer.getEmail()));
     }
 
+    @Test
+    void getById_missingCustomerReturns404() throws Exception {
+        User employee = createEmployee("uc-missing-detail-employee@example.com");
+
+        mockMvc.perform(get("/users/{id}", 999999)
+                        .header("Authorization", bearerToken(employee)))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.message").value("Customer not found: 999999"));
+    }
+
+    @Test
+    void getById_employeeIdReturns404() throws Exception {
+        User employee = createEmployee("uc-employee-detail-employee@example.com");
+
+        mockMvc.perform(get("/users/{id}", employee.getId())
+                        .header("Authorization", bearerToken(employee)))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.message").value("Customer not found: " + employee.getId()));
+    }
+
     // --- PATCH /users/{id} ---
 
     @Test
@@ -250,12 +272,12 @@ class UserControllerFunctionalTest {
                 .andExpect(status().isOk());
 
         // Activation must create exactly one CHECKING and one SAVINGS account for the customer.
-        java.util.List<Account> accounts = accountRepository.findByUser_Id(customer.getId());
+        List<Account> accounts = accountRepository.findByUser_Id(customer.getId());
         long checkingCount = accounts.stream().filter(a -> a.getType() == AccountType.CHECKING).count();
         long savingsCount  = accounts.stream().filter(a -> a.getType() == AccountType.SAVINGS).count();
-        org.junit.jupiter.api.Assertions.assertEquals(1, checkingCount, "Expected 1 CHECKING account");
-        org.junit.jupiter.api.Assertions.assertEquals(1, savingsCount,  "Expected 1 SAVINGS account");
-        accounts.forEach(a -> org.junit.jupiter.api.Assertions.assertEquals(AccountStatus.ACTIVE, a.getStatus()));
+        assertEquals(1, checkingCount, "Expected 1 CHECKING account");
+        assertEquals(1, savingsCount,  "Expected 1 SAVINGS account");
+        accounts.forEach(a -> assertEquals(AccountStatus.ACTIVE, a.getStatus()));
     }
 
     @Test

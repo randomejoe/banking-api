@@ -5,6 +5,7 @@ import nl.inholland.bankingapi.entities.CustomerProfile;
 import nl.inholland.bankingapi.entities.User;
 import nl.inholland.bankingapi.entities.enums.CustomerStatus;
 import nl.inholland.bankingapi.entities.enums.UserRole;
+import nl.inholland.bankingapi.exceptions.ResourceNotFoundException;
 import nl.inholland.bankingapi.repositories.CustomerProfileRepository;
 import nl.inholland.bankingapi.repositories.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -23,6 +24,7 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
@@ -172,17 +174,37 @@ class CustomerServiceTest {
     }
 
     @Test
-    void updateCustomer_whenUserNotFound_returnsNull() {
+    void updateCustomer_whenUserNotFound_throwsResourceNotFound() {
         when(userRepository.findById(99)).thenReturn(Optional.empty());
-        // both lookups run before the null check
-        when(customerProfileRepository.findByUser_Id(99)).thenReturn(null);
 
         CustomerUpdateRequest request = new CustomerUpdateRequest(null, "Bob", null, null, null, null);
-        CustomerProfile result = customerService.updateCustomer(99, request);
 
-        assertNull(result);
+        assertThrows(ResourceNotFoundException.class, () -> customerService.updateCustomer(99, request));
         // nothing should be saved if user not found
         verify(userRepository, never()).save(any());
+        verify(customerProfileRepository, never()).save(any());
+    }
+
+    @Test
+    void updateCustomer_whenUserIsNotCustomer_throwsResourceNotFound() {
+        customer.setRole(UserRole.EMPLOYEE);
+        when(userRepository.findById(1)).thenReturn(Optional.of(customer));
+
+        CustomerUpdateRequest request = new CustomerUpdateRequest(null, "Bob", null, null, null, null);
+
+        assertThrows(ResourceNotFoundException.class, () -> customerService.updateCustomer(1, request));
+        verify(customerProfileRepository, never()).findByUser_Id(1);
+        verify(customerProfileRepository, never()).save(any());
+    }
+
+    @Test
+    void updateCustomer_whenProfileNotFound_throwsResourceNotFound() {
+        when(userRepository.findById(1)).thenReturn(Optional.of(customer));
+        when(customerProfileRepository.findByUser_Id(1)).thenReturn(null);
+
+        CustomerUpdateRequest request = new CustomerUpdateRequest(null, "Bob", null, null, null, null);
+
+        assertThrows(ResourceNotFoundException.class, () -> customerService.updateCustomer(1, request));
         verify(customerProfileRepository, never()).save(any());
     }
 

@@ -34,3 +34,8 @@ build/
 
 ### Environment variables ###
 .env
+
+### Local project tooling ###
+.omx/
+.omc/
+PROJECT_REQUIREMENTS.md

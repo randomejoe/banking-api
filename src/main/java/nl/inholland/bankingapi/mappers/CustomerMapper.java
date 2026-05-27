@@ -20,7 +20,8 @@ public interface CustomerMapper {
     CustomerSummaryResponse toSummary(User user, CustomerProfile profile);
 
     @Mapping(source = "user.id", target = "id")
-    @Mapping(target = "totalBalance", expression = "java(accounts.stream().map(Account::getBalance).reduce(BigDecimal.ZERO, BigDecimal::add))")
+    @Mapping(source = "accounts", target = "accounts")
+    @Mapping(target = "totalBalance", expression = "java(accounts == null ? BigDecimal.ZERO : accounts.stream().map(Account::getBalance).reduce(BigDecimal.ZERO, BigDecimal::add))")
     CustomerDetailResponse toDetail(User user, CustomerProfile profile, List<Account> accounts);
 
     @Mapping(source = "user.id", target = "id")

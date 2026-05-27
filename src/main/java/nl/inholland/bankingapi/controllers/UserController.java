@@ -52,8 +52,8 @@ public class UserController extends BaseController {
     @GetMapping("/{id}")
     @PreAuthorize("hasRole('EMPLOYEE')")
     CustomerDetailResponse getById(@PathVariable int id) {
-        User user = customerService.getUserById(id);
-        CustomerProfile profile = customerService.getProfileByUserId(id);
+        User user = customerService.getCustomerUserById(id);
+        CustomerProfile profile = customerService.getRequiredProfileByUserId(id);
         List<Account> accounts = accountService.getByUserId(id);
         return customerMapper.toDetail(user, profile, accounts);
     }
