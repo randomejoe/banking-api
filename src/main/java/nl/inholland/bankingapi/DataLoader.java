@@ -50,16 +50,16 @@ public class DataLoader implements ApplicationRunner {
         User alice = new User(0, "alice@example.nl", passwordEncoder.encode(CUSTOMER_PASSWORD), "Alice", "Jansen", UserRole.CUSTOMER, LocalDateTime.now());
         userRepository.save(alice);
         customerProfileRepository.save(new CustomerProfile(0, alice, "123456789", "0612345678", CustomerStatus.ACTIVE));
-        Account aliceChecking = accountRepository.save(new Account(0, alice, "NL95INHL0000000001", AccountType.CHECKING,
+        Account aliceChecking = accountRepository.save(new Account(0, alice, "NL95INHO0000000001", AccountType.CHECKING,
                 new BigDecimal("1500.00"), new BigDecimal("1000.00"), new BigDecimal("500.00"), AccountStatus.ACTIVE, LocalDateTime.now()));
-        Account aliceSavings = accountRepository.save(new Account(0, alice, "NL68INHL0000000002", AccountType.SAVINGS,
+        Account aliceSavings = accountRepository.save(new Account(0, alice, "NL68INHO0000000002", AccountType.SAVINGS,
                 new BigDecimal("3000.00"), new BigDecimal("1000.00"), new BigDecimal("500.00"), AccountStatus.ACTIVE, LocalDateTime.now()));
 
         // Active customer - Bob
         User bob = new User(0, "bob@example.nl", passwordEncoder.encode(CUSTOMER_PASSWORD), "Bob", "de Vries", UserRole.CUSTOMER, LocalDateTime.now());
         userRepository.save(bob);
         customerProfileRepository.save(new CustomerProfile(0, bob, "987654321", "0687654321", CustomerStatus.ACTIVE));
-        Account bobChecking = accountRepository.save(new Account(0, bob, "NL41INHL0000000003", AccountType.CHECKING,
+        Account bobChecking = accountRepository.save(new Account(0, bob, "NL41INHO0000000003", AccountType.CHECKING,
                 new BigDecimal("800.00"), new BigDecimal("1000.00"), new BigDecimal("500.00"), AccountStatus.ACTIVE, LocalDateTime.now()));
 
         // Pending customer - Charlie

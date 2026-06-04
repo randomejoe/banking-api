@@ -21,6 +21,7 @@ import java.util.function.LongSupplier;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class AccountServiceTest {
 
@@ -42,7 +43,7 @@ class AccountServiceTest {
     @Test
     void existingIbanCandidatesAreRetriedBeforeSaving() {
         TestAccountRepository accountRepository = new TestAccountRepository(iban -> {
-            if ("NL02INHL0000000001".equals(iban)) {
+            if ("NL02INHO0000000001".equals(iban)) {
                 return Optional.of(new Account());
             }
             return Optional.empty();
@@ -57,8 +58,9 @@ class AccountServiceTest {
 
         // num=1 is rejected (IBAN exists), num=2 is accepted for first account,
         // num=3 is accepted for second account — two saves total
-        accountService.createAccountsForUser(user, BigDecimal.valueOf(1000), BigDecimal.valueOf(500));
+        List<Account> accounts = accountService.createAccountsForUser(user, BigDecimal.valueOf(1000), BigDecimal.valueOf(500));
         assertEquals(2, accountRepository.saveCount());
+        assertTrue(accounts.stream().allMatch(account -> account.getIban().matches("NL\\d{2}INHO0\\d{9}")));
     }
 
     @Test
@@ -89,7 +91,7 @@ class AccountServiceTest {
         AccountService accountService = new AccountService(accountRepository.proxy(), accountPolicy, accountAccessPolicy, () -> 1L);
         AccountUpdateRequest request = new AccountUpdateRequest(new BigDecimal("-1.00"), null, null);
 
-        assertThrows(IllegalArgumentException.class, () -> accountService.updateAccount("NL02INHL0000000001", request));
+        assertThrows(IllegalArgumentException.class, () -> accountService.updateAccount("NL02INHO0000000001", request));
         assertEquals(0, accountRepository.saveCount());
     }
 

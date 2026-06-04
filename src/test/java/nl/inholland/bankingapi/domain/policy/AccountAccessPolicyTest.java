@@ -26,7 +26,7 @@ class AccountAccessPolicyTest {
         assertEquals(42, effective.getUserId());
         assertEquals(AccountType.CHECKING, effective.getType());
         assertEquals(AccountStatus.ACTIVE, effective.getStatus());
-        assertEquals("NL02INHL0000000001", effective.getIban());
+        assertEquals("NL02INHO0000000001", effective.getIban());
         assertEquals("Jane", effective.getName());
     }
 
@@ -40,7 +40,7 @@ class AccountAccessPolicyTest {
         assertEquals(9, effective.getUserId());
         assertEquals(AccountType.CHECKING, effective.getType());
         assertEquals(AccountStatus.ACTIVE, effective.getStatus());
-        assertEquals("NL02INHL0000000001", effective.getIban());
+        assertEquals("NL02INHO0000000001", effective.getIban());
         assertNull(effective.getName());
     }
 
@@ -49,7 +49,7 @@ class AccountAccessPolicyTest {
         query.setUserId(42);
         query.setType(AccountType.CHECKING);
         query.setStatus(AccountStatus.ACTIVE);
-        query.setIban("NL02INHL0000000001");
+        query.setIban("NL02INHO0000000001");
         query.setName("Jane");
         return query;
     }

@@ -36,7 +36,7 @@ public class AccountService {
     public AccountService(AccountRepository accountRepository, AccountPolicy accountPolicy,
                           AccountAccessPolicy accountAccessPolicy) {
         this(accountRepository, accountPolicy, accountAccessPolicy,
-                () -> ThreadLocalRandom.current().nextLong(1_000_000_000L, 9_999_999_999L));
+                () -> ThreadLocalRandom.current().nextLong(1_000_000_000L));
     }
 
     public AccountService(AccountRepository accountRepository, AccountPolicy accountPolicy,
@@ -101,7 +101,9 @@ public class AccountService {
     private String generateIban() {
         for (int attempt = 0; attempt < MAX_IBAN_GENERATION_ATTEMPTS; attempt++) {
             long num = ibanNumberSource.getAsLong();
-            String iban = "NL" + String.format("%02d", (num % 99) + 1) + "INHL" + String.format("%010d", num);
+            long accountNumber = Math.floorMod(num, 1_000_000_000L);
+            String iban = "NL" + String.format("%02d", (accountNumber % 99) + 1)
+                    + "INHO0" + String.format("%09d", accountNumber);
             if (!accountRepository.existsByIban(iban)) {
                 return iban;
             }
