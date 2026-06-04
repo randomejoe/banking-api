@@ -334,6 +334,22 @@ class AccountControllerFunctionalTest {
     }
 
     @Test
+    void updateAccount_closeNonZeroBalanceReturns400() throws Exception {
+        User customer = createCustomer("ac-close-balance@example.com");
+        User employee = createEmployee("ac-close-balance-emp@example.com");
+        Account account = createAccount(customer, "FTACCTCLOSEBAL01");
+
+        Map<String, Object> request = new HashMap<>();
+        request.put("status", "CLOSED");
+
+        mockMvc.perform(patch("/accounts/{iban}", account.getIban())
+                        .header("Authorization", bearerToken(employee))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
     void updateAccount_customerGetsForbidden() throws Exception {
         User customer = createCustomer("ac-forbidden@example.com");
         Account account = createAccount(customer, "FTACCTFORBID01");

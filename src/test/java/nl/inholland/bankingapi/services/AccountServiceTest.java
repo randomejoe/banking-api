@@ -5,6 +5,7 @@ import nl.inholland.bankingapi.domain.policy.AccountPolicy;
 import nl.inholland.bankingapi.dtos.AccountUpdateRequest;
 import nl.inholland.bankingapi.entities.Account;
 import nl.inholland.bankingapi.entities.User;
+import nl.inholland.bankingapi.entities.enums.AccountStatus;
 import nl.inholland.bankingapi.entities.enums.UserRole;
 import nl.inholland.bankingapi.repositories.AccountRepository;
 import org.junit.jupiter.api.Test;
@@ -96,10 +97,66 @@ class AccountServiceTest {
     }
 
     @Test
+    void updateAccountCanPatchOnlyAbsoluteLimit() {
+        Account account = editableAccount();
+        TestAccountRepository accountRepository = new TestAccountRepository(iban -> Optional.of(account));
+        AccountService accountService = new AccountService(accountRepository.proxy(), accountPolicy, accountAccessPolicy, () -> 1L);
+
+        Account updated = accountService.updateAccount(account.getIban(),
+                new AccountUpdateRequest(new BigDecimal("250.00"), null, null));
+
+        assertEquals(new BigDecimal("250.00"), updated.getAbsoluteTransferLimit());
+        assertEquals(new BigDecimal("500.00"), updated.getDailyTransferLimit());
+        assertEquals(AccountStatus.ACTIVE, updated.getStatus());
+        assertEquals(1, accountRepository.saveCount());
+    }
+
+    @Test
+    void updateAccountCanPatchOnlyDailyLimit() {
+        Account account = editableAccount();
+        TestAccountRepository accountRepository = new TestAccountRepository(iban -> Optional.of(account));
+        AccountService accountService = new AccountService(accountRepository.proxy(), accountPolicy, accountAccessPolicy, () -> 1L);
+
+        Account updated = accountService.updateAccount(account.getIban(),
+                new AccountUpdateRequest(null, new BigDecimal("750.00"), null));
+
+        assertEquals(new BigDecimal("100.00"), updated.getAbsoluteTransferLimit());
+        assertEquals(new BigDecimal("750.00"), updated.getDailyTransferLimit());
+        assertEquals(AccountStatus.ACTIVE, updated.getStatus());
+        assertEquals(1, accountRepository.saveCount());
+    }
+
+    @Test
+    void updateAccountCanPatchOnlyStatus() {
+        Account account = editableAccount();
+        account.setBalance(BigDecimal.ZERO);
+        TestAccountRepository accountRepository = new TestAccountRepository(iban -> Optional.of(account));
+        AccountService accountService = new AccountService(accountRepository.proxy(), accountPolicy, accountAccessPolicy, () -> 1L);
+
+        Account updated = accountService.updateAccount(account.getIban(),
+                new AccountUpdateRequest(null, null, AccountStatus.CLOSED));
+
+        assertEquals(new BigDecimal("100.00"), updated.getAbsoluteTransferLimit());
+        assertEquals(new BigDecimal("500.00"), updated.getDailyTransferLimit());
+        assertEquals(AccountStatus.CLOSED, updated.getStatus());
+        assertEquals(1, accountRepository.saveCount());
+    }
+
+    @Test
     void updateAccountIsTransactional() throws NoSuchMethodException {
         Method method = AccountService.class.getMethod("updateAccount", String.class, AccountUpdateRequest.class);
 
         assertNotNull(method.getAnnotation(Transactional.class));
+    }
+
+    private Account editableAccount() {
+        Account account = new Account();
+        account.setIban("NL02INHO0000000001");
+        account.setBalance(new BigDecimal("100.00"));
+        account.setAbsoluteTransferLimit(new BigDecimal("100.00"));
+        account.setDailyTransferLimit(new BigDecimal("500.00"));
+        account.setStatus(AccountStatus.ACTIVE);
+        return account;
     }
 
     private record TestAccountRepository(IbanLookup ibanLookup, int[] saves) {
