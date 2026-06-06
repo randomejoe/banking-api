@@ -150,7 +150,7 @@
       "name": "Accounts",
       "item": [
         {
-          "name": "Get All Accounts",
+          "name": "Employee Account Search",
           "request": {
             "method": "GET",
             "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
@@ -163,9 +163,39 @@
                 { "key": "type", "value": "", "description": "CHECKING | SAVINGS" },
                 { "key": "status", "value": "", "description": "ACTIVE | CLOSED" },
                 { "key": "iban", "value": "", "description": "Filter by exact IBAN" },
-                { "key": "name", "value": "", "description": "Customer lookup by first or last name. Customers receive safe transfer-target rows only: active checking accounts for other customers, with IBAN and name fields only." }
+                { "key": "name", "value": "", "description": "Employee search by customer first name, last name, or email." }
               ]
-            }
+            },
+            "description": "Employee-only private account search. Customers should use /accounts/me or /accounts/transfer-targets."
+          }
+        },
+        {
+          "name": "My Accounts",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/accounts/me",
+              "host": ["{{baseUrl}}"],
+              "path": ["accounts", "me"]
+            },
+            "description": "Active customer-only endpoint for the current customer's own accounts."
+          }
+        },
+        {
+          "name": "Transfer Target Search",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/accounts/transfer-targets?name=",
+              "host": ["{{baseUrl}}"],
+              "path": ["accounts", "transfer-targets"],
+              "query": [
+                { "key": "name", "value": "", "description": "Customer first or last name fragment. Returns only active checking accounts for other customers." }
+              ]
+            },
+            "description": "Active customer-only public lookup. Response rows expose only iban, firstName, and lastName."
           }
         },
         {

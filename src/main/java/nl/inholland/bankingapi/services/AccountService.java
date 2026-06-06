@@ -1,6 +1,5 @@
 package nl.inholland.bankingapi.services;
 
-import nl.inholland.bankingapi.domain.policy.AccountAccessPolicy;
 import nl.inholland.bankingapi.domain.policy.AccountPolicy;
 import nl.inholland.bankingapi.dtos.AccountQuery;
 import nl.inholland.bankingapi.dtos.AccountUpdateRequest;
@@ -10,6 +9,7 @@ import nl.inholland.bankingapi.entities.enums.AccountStatus;
 import nl.inholland.bankingapi.entities.enums.AccountType;
 import nl.inholland.bankingapi.exceptions.ResourceNotFoundException;
 import nl.inholland.bankingapi.repositories.AccountRepository;
+import nl.inholland.bankingapi.util.IbanGenerator;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -19,32 +19,20 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.concurrent.ThreadLocalRandom;
-import java.util.function.LongSupplier;
 
 @Service
 public class AccountService {
 
-    private static final int MAX_IBAN_GENERATION_ATTEMPTS = 100;
-
     private final AccountRepository accountRepository;
     private final AccountPolicy accountPolicy;
-    private final AccountAccessPolicy accountAccessPolicy;
-    private final LongSupplier ibanNumberSource;
+    private final IbanGenerator ibanGenerator;
 
     @Autowired
     public AccountService(AccountRepository accountRepository, AccountPolicy accountPolicy,
-                          AccountAccessPolicy accountAccessPolicy) {
-        this(accountRepository, accountPolicy, accountAccessPolicy,
-                () -> ThreadLocalRandom.current().nextLong(1_000_000_000L));
-    }
-
-    public AccountService(AccountRepository accountRepository, AccountPolicy accountPolicy,
-                          AccountAccessPolicy accountAccessPolicy, LongSupplier ibanNumberSource) {
+                          IbanGenerator ibanGenerator) {
         this.accountRepository = accountRepository;
         this.accountPolicy = accountPolicy;
-        this.accountAccessPolicy = accountAccessPolicy;
-        this.ibanNumberSource = ibanNumberSource;
+        this.ibanGenerator = ibanGenerator;
     }
 
     @Transactional
@@ -61,12 +49,15 @@ public class AccountService {
         return accountRepository.findAllFiltered(query, pageable);
     }
 
-    public Page<Account> getAllForUser(User currentUser, AccountQuery query, Pageable pageable) {
-        return getAll(accountAccessPolicy.effectiveQueryFor(currentUser, query), pageable);
+    public Page<Account> getOwnAccounts(int userId, Pageable pageable) {
+        return accountRepository.findByUser_Id(userId, pageable);
     }
 
-    public Page<Account> searchTransferTargets(User currentUser, String name, Pageable pageable) {
-        return accountRepository.findTransferTargetsByCustomerName(currentUser.getId(), name.trim(), pageable);
+    public Page<Account> searchTransferTargets(int excludeUserId, String name, Pageable pageable) {
+        if (name == null || name.isBlank()) {
+            return Page.empty(pageable);
+        }
+        return accountRepository.findTransferTargetsByCustomerName(excludeUserId, name.trim(), pageable);
     }
 
     public Account getByIban(String iban) {
@@ -93,21 +84,8 @@ public class AccountService {
 
     private Account buildAccount(User user, AccountType type,
                                  BigDecimal absoluteTransferLimit, BigDecimal dailyTransferLimit) {
-        return new Account(0, user, generateIban(), type,
+        return new Account(0, user, ibanGenerator.generate(), type,
                 BigDecimal.ZERO, absoluteTransferLimit, dailyTransferLimit,
                 AccountStatus.ACTIVE, LocalDateTime.now());
-    }
-
-    private String generateIban() {
-        for (int attempt = 0; attempt < MAX_IBAN_GENERATION_ATTEMPTS; attempt++) {
-            long num = ibanNumberSource.getAsLong();
-            long accountNumber = Math.floorMod(num, 1_000_000_000L);
-            String iban = "NL" + String.format("%02d", (accountNumber % 99) + 1)
-                    + "INHO0" + String.format("%09d", accountNumber);
-            if (!accountRepository.existsByIban(iban)) {
-                return iban;
-            }
-        }
-        throw new IllegalStateException("Unable to generate a unique IBAN");
     }
 }
