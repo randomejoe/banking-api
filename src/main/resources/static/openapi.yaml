@@ -92,7 +92,7 @@ paths:
   /accounts:
     get:
       tags: [Accounts]
-      summary: List accounts (paginated)
+      summary: Employee account search (paginated)
       security:
         - bearerAuth: []
       parameters:
@@ -144,13 +144,11 @@ paths:
             type: string
       responses:
         '200':
-          description: Page of account details, or safe transfer-target search results for customer name lookup
+          description: Page of private employee account details
           content:
             application/json:
               schema:
-                oneOf:
-                  - $ref: '#/components/schemas/AccountPage'
-                  - $ref: '#/components/schemas/AccountSearchPage'
+                $ref: '#/components/schemas/EmployeeAccountPage'
         '401':
           description: Not authenticated
           content:
@@ -159,6 +157,107 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
         '403':
           description: Access denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /accounts/me:
+    get:
+      tags: [Accounts]
+      summary: List the current customer's accounts
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+        - name: size
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 20
+        - name: sort
+          in: query
+          required: false
+          description: Sort expression such as `createdAt,desc`
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Page of the current active customer's accounts
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OwnAccountPage'
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Access denied or customer is not active
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /accounts/transfer-targets:
+    get:
+      tags: [Accounts]
+      summary: Search public transfer targets
+      description: Returns active checking accounts owned by other customers. Response rows expose only IBAN and customer name fields.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: name
+          in: query
+          required: true
+          description: Customer first or last name fragment
+          schema:
+            type: string
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+        - name: size
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 20
+        - name: sort
+          in: query
+          required: false
+          description: Sort expression such as `iban,asc`
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Page of safe transfer-target results
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TransferTargetPage'
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Access denied or customer is not active
           content:
             application/json:
               schema:
@@ -190,7 +289,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/AccountResponse'
+                $ref: '#/components/schemas/EmployeeAccountResponse'
         '400':
           description: Validation error, no fields provided, or cannot close account with non-zero balance
           content:
@@ -706,11 +805,30 @@ components:
         phoneNumber:
           type: string
 
-    AccountResponse:
+    EmployeeAccountResponse:
       type: object
       properties:
         userId:
           type: integer
+        iban:
+          type: string
+        type:
+          $ref: '#/components/schemas/AccountType'
+        balance:
+          type: number
+        absoluteTransferLimit:
+          type: number
+        dailyTransferLimit:
+          type: number
+        status:
+          $ref: '#/components/schemas/AccountStatus'
+        createdAt:
+          type: string
+          format: date-time
+
+    OwnAccountResponse:
+      type: object
+      properties:
         iban:
           type: string
         type:
@@ -739,7 +857,7 @@ components:
         status:
           $ref: '#/components/schemas/AccountStatus'
 
-    AccountSearchResponse:
+    TransferTargetResponse:
       type: object
       description: Safe customer-facing transfer target result. Does not expose balances or limits.
       properties:
@@ -848,7 +966,7 @@ components:
           additionalProperties:
             type: string
 
-    AccountPage:
+    EmployeeAccountPage:
       allOf:
         - $ref: '#/components/schemas/PageMetadata'
         - type: object
@@ -856,9 +974,9 @@ components:
             content:
               type: array
               items:
-                $ref: '#/components/schemas/AccountResponse'
+                $ref: '#/components/schemas/EmployeeAccountResponse'
 
-    AccountSearchPage:
+    OwnAccountPage:
       allOf:
         - $ref: '#/components/schemas/PageMetadata'
         - type: object
@@ -866,7 +984,17 @@ components:
             content:
               type: array
               items:
-                $ref: '#/components/schemas/AccountSearchResponse'
+                $ref: '#/components/schemas/OwnAccountResponse'
+
+    TransferTargetPage:
+      allOf:
+        - $ref: '#/components/schemas/PageMetadata'
+        - type: object
+          properties:
+            content:
+              type: array
+              items:
+                $ref: '#/components/schemas/TransferTargetResponse'
 
     CustomerSummaryPage:
       allOf:

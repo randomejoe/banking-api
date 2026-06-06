@@ -1,6 +1,5 @@
 package nl.inholland.bankingapi.services;
 
-import nl.inholland.bankingapi.domain.policy.AccountAccessPolicy;
 import nl.inholland.bankingapi.domain.policy.AccountPolicy;
 import nl.inholland.bankingapi.dtos.AccountQuery;
 import nl.inholland.bankingapi.dtos.AccountUpdateRequest;
@@ -10,6 +9,7 @@ import nl.inholland.bankingapi.entities.enums.AccountStatus;
 import nl.inholland.bankingapi.entities.enums.AccountType;
 import nl.inholland.bankingapi.entities.enums.UserRole;
 import nl.inholland.bankingapi.repositories.AccountRepository;
+import nl.inholland.bankingapi.util.IbanGenerator;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -22,24 +22,21 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
-import java.util.function.LongSupplier;
 
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class AccountServiceTest {
 
     private final AccountPolicy accountPolicy = new AccountPolicy();
-    private final AccountAccessPolicy accountAccessPolicy = new AccountAccessPolicy();
 
     @Test
-    void exhaustingIbanCandidatesDoesNotSavePartialAccounts() {
-        // every IBAN is already taken, so the service runs out of candidates and throws
+    void failingIbanGenerationDoesNotSavePartialAccounts() {
         TestAccountRepository accountRepository = new TestAccountRepository(iban -> Optional.of(new Account()));
-        AccountService accountService = new AccountService(accountRepository.proxy(), accountPolicy, accountAccessPolicy, () -> 1L);
+        AccountService accountService = accountService(accountRepository, () -> {
+            throw new IllegalStateException("Unable to generate a unique IBAN");
+        });
         User user = new User(1, "user@example.com", "secret", "Test", "User", UserRole.CUSTOMER, LocalDateTime.now());
 
         assertThrows(IllegalStateException.class, () ->
@@ -48,35 +45,22 @@ class AccountServiceTest {
     }
 
     @Test
-    void existingIbanCandidatesAreRetriedBeforeSaving() {
-        TestAccountRepository accountRepository = new TestAccountRepository(iban -> {
-            if ("NL02INHO0000000001".equals(iban)) {
-                return Optional.of(new Account());
-            }
-            return Optional.empty();
-        });
-
-        long[] values = {1L, 2L, 3L, 4L};
-        int[] index = {0};
-        LongSupplier source = () -> values[index[0]++];
-
-        AccountService accountService = new AccountService(accountRepository.proxy(), accountPolicy, accountAccessPolicy, source);
+    void createAccountsForUserUsesGeneratedIbansBeforeSaving() {
+        TestAccountRepository accountRepository = new TestAccountRepository(iban -> Optional.empty());
+        AccountService accountService = accountService(accountRepository,
+                sequenceGenerator("NL01INHO0000000001", "NL02INHO0000000002"));
         User user = new User(1, "user@example.com", "secret", "Test", "User", UserRole.CUSTOMER, LocalDateTime.now());
 
-        // num=1 is rejected (IBAN exists), num=2 is accepted for first account,
-        // num=3 is accepted for second account — two saves total
         List<Account> accounts = accountService.createAccountsForUser(user, BigDecimal.valueOf(1000), BigDecimal.valueOf(500));
-        assertEquals("NL03INHO0000000002", accounts.get(0).getIban());
-        assertEquals("NL04INHO0000000003", accounts.get(1).getIban());
-        assertEquals(3, index[0]);
+        assertEquals("NL01INHO0000000001", accounts.get(0).getIban());
+        assertEquals("NL02INHO0000000002", accounts.get(1).getIban());
         assertEquals(2, accountRepository.saveCount());
-        assertTrue(accounts.stream().allMatch(account -> account.getIban().matches("NL\\d{2}INHO0\\d{9}")));
     }
 
     @Test
     void createAccountsForUser_requiresAbsoluteTransferLimitBeforeSaving() {
         TestAccountRepository accountRepository = new TestAccountRepository(iban -> Optional.empty());
-        AccountService accountService = new AccountService(accountRepository.proxy(), accountPolicy, accountAccessPolicy, () -> 1L);
+        AccountService accountService = accountService(accountRepository, sequenceGenerator("NL01INHO0000000001"));
         User user = new User(1, "user@example.com", "secret", "Test", "User", UserRole.CUSTOMER, LocalDateTime.now());
 
         assertThrows(IllegalArgumentException.class, () ->
@@ -87,7 +71,7 @@ class AccountServiceTest {
     @Test
     void createAccountsForUser_requiresDailyTransferLimitBeforeSaving() {
         TestAccountRepository accountRepository = new TestAccountRepository(iban -> Optional.empty());
-        AccountService accountService = new AccountService(accountRepository.proxy(), accountPolicy, accountAccessPolicy, () -> 1L);
+        AccountService accountService = accountService(accountRepository, sequenceGenerator("NL01INHO0000000001"));
         User user = new User(1, "user@example.com", "secret", "Test", "User", UserRole.CUSTOMER, LocalDateTime.now());
 
         assertThrows(IllegalArgumentException.class, () ->
@@ -98,7 +82,7 @@ class AccountServiceTest {
     @Test
     void updateAccountRejectsNegativeLimitsBeforeLookupOrSave() {
         TestAccountRepository accountRepository = new TestAccountRepository(iban -> Optional.empty());
-        AccountService accountService = new AccountService(accountRepository.proxy(), accountPolicy, accountAccessPolicy, () -> 1L);
+        AccountService accountService = accountService(accountRepository, sequenceGenerator("NL01INHO0000000001"));
         AccountUpdateRequest request = new AccountUpdateRequest(new BigDecimal("-1.00"), null, null);
 
         assertThrows(IllegalArgumentException.class, () -> accountService.updateAccount("NL02INHO0000000001", request));
@@ -109,7 +93,7 @@ class AccountServiceTest {
     void updateAccountCanPatchOnlyAbsoluteLimit() {
         Account account = editableAccount();
         TestAccountRepository accountRepository = new TestAccountRepository(iban -> Optional.of(account));
-        AccountService accountService = new AccountService(accountRepository.proxy(), accountPolicy, accountAccessPolicy, () -> 1L);
+        AccountService accountService = accountService(accountRepository, sequenceGenerator("NL01INHO0000000001"));
 
         Account updated = accountService.updateAccount(account.getIban(),
                 new AccountUpdateRequest(new BigDecimal("250.00"), null, null));
@@ -124,7 +108,7 @@ class AccountServiceTest {
     void updateAccountCanPatchOnlyDailyLimit() {
         Account account = editableAccount();
         TestAccountRepository accountRepository = new TestAccountRepository(iban -> Optional.of(account));
-        AccountService accountService = new AccountService(accountRepository.proxy(), accountPolicy, accountAccessPolicy, () -> 1L);
+        AccountService accountService = accountService(accountRepository, sequenceGenerator("NL01INHO0000000001"));
 
         Account updated = accountService.updateAccount(account.getIban(),
                 new AccountUpdateRequest(null, new BigDecimal("750.00"), null));
@@ -140,7 +124,7 @@ class AccountServiceTest {
         Account account = editableAccount();
         account.setBalance(BigDecimal.ZERO);
         TestAccountRepository accountRepository = new TestAccountRepository(iban -> Optional.of(account));
-        AccountService accountService = new AccountService(accountRepository.proxy(), accountPolicy, accountAccessPolicy, () -> 1L);
+        AccountService accountService = accountService(accountRepository, sequenceGenerator("NL01INHO0000000001"));
 
         Account updated = accountService.updateAccount(account.getIban(),
                 new AccountUpdateRequest(null, null, AccountStatus.CLOSED));
@@ -155,7 +139,7 @@ class AccountServiceTest {
     void updateAccountRejectsClosingAccountWithNonZeroBalance() {
         Account account = editableAccount();
         TestAccountRepository accountRepository = new TestAccountRepository(iban -> Optional.of(account));
-        AccountService accountService = new AccountService(accountRepository.proxy(), accountPolicy, accountAccessPolicy, () -> 1L);
+        AccountService accountService = accountService(accountRepository, sequenceGenerator("NL01INHO0000000001"));
 
         assertThrows(IllegalArgumentException.class, () ->
                 accountService.updateAccount(account.getIban(),
@@ -164,29 +148,37 @@ class AccountServiceTest {
     }
 
     @Test
-    void getAllForUserAppliesPrivateAccountAccessPolicyBeforeRepositoryLookup() {
+    void getAllDelegatesFilteredQueryToRepository() {
         TestAccountRepository accountRepository = new TestAccountRepository(iban -> Optional.empty());
-        AccountService accountService = new AccountService(accountRepository.proxy(), accountPolicy, accountAccessPolicy, () -> 1L);
-        User customer = new User(9, "customer@example.com", "secret", "Test", "User", UserRole.CUSTOMER, LocalDateTime.now());
+        AccountService accountService = accountService(accountRepository, sequenceGenerator("NL01INHO0000000001"));
         AccountQuery query = new AccountQuery();
         query.setUserId(42);
         query.setName("Jane");
         query.setType(AccountType.CHECKING);
 
-        accountService.getAllForUser(customer, query, PageRequest.of(0, 20));
+        accountService.getAll(query, PageRequest.of(0, 20));
 
-        assertEquals(9, accountRepository.filteredQuery().getUserId());
+        assertEquals(42, accountRepository.filteredQuery().getUserId());
         assertEquals(AccountType.CHECKING, accountRepository.filteredQuery().getType());
-        assertNull(accountRepository.filteredQuery().getName());
+        assertEquals("Jane", accountRepository.filteredQuery().getName());
+    }
+
+    @Test
+    void getOwnAccountsUsesDedicatedUserIdLookup() {
+        TestAccountRepository accountRepository = new TestAccountRepository(iban -> Optional.empty());
+        AccountService accountService = accountService(accountRepository, sequenceGenerator("NL01INHO0000000001"));
+
+        accountService.getOwnAccounts(9, PageRequest.of(0, 20));
+
+        assertEquals(9, accountRepository.ownAccountsUserId());
     }
 
     @Test
     void searchTransferTargetsUsesDedicatedPublicLookupQuery() {
         TestAccountRepository accountRepository = new TestAccountRepository(iban -> Optional.empty());
-        AccountService accountService = new AccountService(accountRepository.proxy(), accountPolicy, accountAccessPolicy, () -> 1L);
-        User customer = new User(9, "customer@example.com", "secret", "Test", "User", UserRole.CUSTOMER, LocalDateTime.now());
+        AccountService accountService = accountService(accountRepository, sequenceGenerator("NL01INHO0000000001"));
 
-        accountService.searchTransferTargets(customer, "  Jane  ", PageRequest.of(0, 20));
+        accountService.searchTransferTargets(9, "  Jane  ", PageRequest.of(0, 20));
 
         assertEquals(9, accountRepository.transferTargetUserId());
         assertEquals("Jane", accountRepository.transferTargetName());
@@ -197,6 +189,15 @@ class AccountServiceTest {
         Method method = AccountService.class.getMethod("updateAccount", String.class, AccountUpdateRequest.class);
 
         assertNotNull(method.getAnnotation(Transactional.class));
+    }
+
+    private AccountService accountService(TestAccountRepository accountRepository, IbanGenerator ibanGenerator) {
+        return new AccountService(accountRepository.proxy(), accountPolicy, ibanGenerator);
+    }
+
+    private IbanGenerator sequenceGenerator(String... ibans) {
+        int[] index = {0};
+        return () -> ibans[index[0]++];
     }
 
     private Account editableAccount() {
@@ -210,9 +211,9 @@ class AccountServiceTest {
     }
 
     private record TestAccountRepository(IbanLookup ibanLookup, int[] saves, AccountQuery[] filteredQueries,
-                                         Object[] transferTargetArgs) {
+                                         int[] ownAccountsUserIds, Object[] transferTargetArgs) {
         TestAccountRepository(IbanLookup ibanLookup) {
-            this(ibanLookup, new int[1], new AccountQuery[1], new Object[2]);
+            this(ibanLookup, new int[1], new AccountQuery[1], new int[]{-1}, new Object[2]);
         }
 
         int saveCount() {
@@ -221,6 +222,10 @@ class AccountServiceTest {
 
         AccountQuery filteredQuery() {
             return filteredQueries[0];
+        }
+
+        int ownAccountsUserId() {
+            return ownAccountsUserIds[0];
         }
 
         int transferTargetUserId() {
@@ -242,6 +247,13 @@ class AccountServiceTest {
                         case "findAllFiltered" -> {
                             filteredQueries[0] = (AccountQuery) args[0];
                             yield Page.empty((Pageable) args[1]);
+                        }
+                        case "findByUser_Id" -> {
+                            if (args.length == 2) {
+                                ownAccountsUserIds[0] = (Integer) args[0];
+                                yield Page.empty((Pageable) args[1]);
+                            }
+                            yield List.of();
                         }
                         case "findTransferTargetsByCustomerName" -> {
                             transferTargetArgs[0] = args[0];

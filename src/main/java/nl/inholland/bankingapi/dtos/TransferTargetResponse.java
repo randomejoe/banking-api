@@ -1,7 +1,7 @@
 package nl.inholland.bankingapi.dtos;
 
-public record AccountSearchResponse(
+public record TransferTargetResponse(
         String iban,
         String firstName,
         String lastName
-) implements AccountListItemResponse {}
+) {}

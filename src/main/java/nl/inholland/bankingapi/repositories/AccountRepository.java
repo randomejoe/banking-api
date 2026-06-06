@@ -22,6 +22,8 @@ public interface AccountRepository extends JpaRepository<Account, Integer>, JpaS
 
     List<Account> findByUser_Id(int userId);
 
+    Page<Account> findByUser_Id(int userId, Pageable pageable);
+
     @Query("""
             SELECT a FROM Account a
             JOIN a.user u
