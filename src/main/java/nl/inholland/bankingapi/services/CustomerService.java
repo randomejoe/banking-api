@@ -17,10 +17,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
 import java.math.BigDecimal;
-import java.util.List;
-import java.util.Map;
 import java.util.Optional;
-import java.util.stream.Collectors;
 
 @Service
 public class CustomerService {
@@ -46,9 +43,8 @@ public class CustomerService {
     }
 
     public User getCustomerUserById(int id) {
-        return userRepository.findById(id)
-                .filter(user -> user.getRole() == UserRole.CUSTOMER)
-                .orElseThrow(() -> customerNotFound(id));
+        return userRepository.findByIdAndRole(id, UserRole.CUSTOMER)
+                .orElseThrow(() -> new ResourceNotFoundException("Customer not found: " + id));
     }
 
     public CustomerProfile getProfileByUserId(int userId) {
@@ -65,13 +61,6 @@ public class CustomerService {
 
     public Page<User> getAllCustomers(CustomerStatus status, String search, Pageable pageable) {
         return userRepository.findCustomers(status, search, pageable);
-    }
-
-    // loads all profiles for the given user IDs in one query instead of one-by-one
-    public Map<Integer, CustomerProfile> getProfileMapByUserIds(List<Integer> userIds) {
-        if (userIds.isEmpty()) return Map.of();
-        return customerProfileRepository.findByUser_IdIn(userIds).stream()
-                .collect(Collectors.toMap(CustomerProfile::getUserId, p -> p));
     }
 
     @Transactional
@@ -103,9 +92,5 @@ public class CustomerService {
         BigDecimal dailyLimit = request.dailyTransferLimit() != null
                 ? request.dailyTransferLimit() : defaultDailyTransferLimit;
         accountService.createAccountsForUser(user, absLimit, dailyLimit);
-    }
-
-    private ResourceNotFoundException customerNotFound(int id) {
-        return new ResourceNotFoundException("Customer not found: " + id);
     }
 }

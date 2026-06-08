@@ -50,6 +50,11 @@ public class User implements UserDetails {
     @Setter(AccessLevel.NONE)
     private CustomerProfile customerProfile;
 
+    // Accounts reference this user via user_id
+    @OneToMany(mappedBy = "user", fetch = FetchType.LAZY)
+    @Setter(AccessLevel.NONE)
+    private List<Account> accounts;
+
     public User(int id, String email, String passwordHash, String firstName, String lastName,
                 UserRole role, LocalDateTime createdAt) {
         this.id = id;

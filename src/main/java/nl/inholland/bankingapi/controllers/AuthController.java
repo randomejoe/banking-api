@@ -6,12 +6,10 @@ import nl.inholland.bankingapi.dtos.LoginResponse;
 import nl.inholland.bankingapi.dtos.RegisterRequest;
 import nl.inholland.bankingapi.dtos.TokenResponse;
 import nl.inholland.bankingapi.dtos.UserResponse;
-import nl.inholland.bankingapi.entities.CustomerProfile;
 import nl.inholland.bankingapi.entities.User;
 import nl.inholland.bankingapi.mappers.CustomerMapper;
 import nl.inholland.bankingapi.mappers.UserMapper;
 import nl.inholland.bankingapi.services.AuthService;
-import nl.inholland.bankingapi.services.CustomerService;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.*;
 
@@ -20,14 +18,12 @@ import org.springframework.web.bind.annotation.*;
 public class AuthController extends BaseController {
 
     private final AuthService authService;
-    private final CustomerService customerService;
     private final UserMapper userMapper;
     private final CustomerMapper customerMapper;
 
-    public AuthController(AuthService authService, CustomerService customerService,
+    public AuthController(AuthService authService,
                           UserMapper userMapper, CustomerMapper customerMapper) {
         this.authService = authService;
-        this.customerService = customerService;
         this.userMapper = userMapper;
         this.customerMapper = customerMapper;
     }
@@ -38,21 +34,19 @@ public class AuthController extends BaseController {
         return userMapper.toResponse(user);
     }
 
-    @PostMapping("/login")
+     @PostMapping("/login")
     LoginResponse login(@RequestBody @Valid LoginRequest request) {
         User user = authService.login(request.email(), request.password());
-        CustomerProfile profile = customerService.getProfileByUserId(user.getId());
         String accessToken = authService.generateToken(user);
         long expirationSeconds = authService.getTokenExpirationMs() / 1000;
         TokenResponse token = new TokenResponse(accessToken, expirationSeconds, "Bearer");
-        CurrentUserResponse userInfo = customerMapper.toCurrentUser(user, profile);
+        CurrentUserResponse userInfo = customerMapper.toCurrentUser(user);
         return new LoginResponse(token, userInfo);
     }
 
     @GetMapping("/me")
     CurrentUserResponse me() {
         User user = currentUser();
-        CustomerProfile profile = customerService.getProfileByUserId(user.getId());
-        return customerMapper.toCurrentUser(user, profile);
+        return customerMapper.toCurrentUser(user);
     }
 }
