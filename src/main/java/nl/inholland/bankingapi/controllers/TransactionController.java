@@ -11,6 +11,7 @@ import nl.inholland.bankingapi.services.TransactionService;
 import jakarta.validation.Valid;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -32,7 +33,7 @@ public class TransactionController extends BaseController {
     @GetMapping("")
     @PreAuthorize("hasRole('EMPLOYEE') or (hasRole('CUSTOMER') and @customerSecurity.isActiveCustomer(authentication))")
     Page<TransactionResponse> getAll(@ModelAttribute TransactionFilterParams filters,
-                                     @PageableDefault(size = 20) Pageable pageable) {
+                                     @PageableDefault(size = 20, sort = "timestamp", direction = Sort.Direction.DESC) Pageable pageable) {
         User user = currentUser();
         if (user.getRole() != UserRole.EMPLOYEE) {
             // Lock the filter to the caller's own identity so customers cannot
