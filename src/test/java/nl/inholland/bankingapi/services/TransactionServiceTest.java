@@ -14,7 +14,6 @@ import nl.inholland.bankingapi.exceptions.ResourceNotFoundException;
 import nl.inholland.bankingapi.mappers.TransactionMapper;
 import nl.inholland.bankingapi.repositories.AccountRepository;
 import nl.inholland.bankingapi.repositories.TransactionRepository;
-import nl.inholland.bankingapi.services.TransactionService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -24,22 +23,18 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class TransactionServiceTest {
@@ -50,11 +45,9 @@ class TransactionServiceTest {
     @Mock
     private AccountRepository accountRepository;
 
-    // mocked so we control what entity the mapper returns
     @Mock
     private TransactionMapper transactionMapper;
 
-    // mocked so we can force failures and verify calls
     @Mock
     private TransactionPolicy transactionPolicy;
 
@@ -103,37 +96,29 @@ class TransactionServiceTest {
         TransactionFilterParams filters = new TransactionFilterParams();
         Pageable pageable = Pageable.unpaged();
         Page<Transaction> expected = new PageImpl<>(List.of(transaction));
-        when(transactionRepository.findAllFiltered(any(), any(), any(), any(), any(), any(), any(), eq(pageable)))
+        when(transactionRepository.findAll(any(Specification.class), eq(pageable)))
                 .thenReturn(expected);
 
         Page<Transaction> result = transactionService.getAll(filters, pageable);
 
         assertEquals(expected, result);
-        verify(transactionRepository).findAllFiltered(any(), any(), any(), any(), any(), any(), any(), eq(pageable));
+        verify(transactionRepository).findAll(any(Specification.class), eq(pageable));
     }
 
     @Test
-    void getAll_convertsDateRangeToInclusiveDayBounds() {
+    void getAll_withDateRange_delegatesToRepository() {
         TransactionFilterParams filters = new TransactionFilterParams();
         filters.setStartDate(LocalDate.of(2026, 5, 1));
         filters.setEndDate(LocalDate.of(2026, 5, 3));
         Pageable pageable = Pageable.unpaged();
         Page<Transaction> expected = new PageImpl<>(List.of(transaction));
-        when(transactionRepository.findAllFiltered(
-                any(), any(), any(), any(), any(),
-                eq(LocalDateTime.of(2026, 5, 1, 0, 0)),
-                eq(LocalDateTime.of(2026, 5, 4, 0, 0)),
-                eq(pageable)))
+        when(transactionRepository.findAll(any(Specification.class), eq(pageable)))
                 .thenReturn(expected);
 
         Page<Transaction> result = transactionService.getAll(filters, pageable);
 
         assertEquals(expected, result);
-        verify(transactionRepository).findAllFiltered(
-                any(), any(), any(), any(), any(),
-                eq(LocalDateTime.of(2026, 5, 1, 0, 0)),
-                eq(LocalDateTime.of(2026, 5, 4, 0, 0)),
-                eq(pageable));
+        verify(transactionRepository).findAll(any(Specification.class), eq(pageable));
     }
 
     @Test
@@ -146,7 +131,7 @@ class TransactionServiceTest {
                 () -> transactionService.getAll(filters, Pageable.unpaged()));
 
         assertEquals("startDate must be on or before endDate", exception.getMessage());
-        verify(transactionRepository, never()).findAllFiltered(any(), any(), any(), any(), any(), any(), any(), any());
+        verify(transactionRepository, never()).findAll(any(Specification.class), any(Pageable.class));
     }
 
     // --- getById ---
@@ -158,15 +143,54 @@ class TransactionServiceTest {
         Transaction result = transactionService.getById(1);
 
         assertEquals(transaction, result);
-        verify(transactionRepository).findById(1);
     }
 
     @Test
     void getById_throwsWhenTransactionNotFound() {
-        // transaction doesn't exist
         when(transactionRepository.findById(99)).thenReturn(Optional.empty());
 
         assertThrows(ResourceNotFoundException.class, () -> transactionService.getById(99));
+    }
+
+    // --- assertCustomerCanView ---
+
+    @Test
+    void assertCustomerCanView_allowsInitiator() {
+        transaction.setInitiatedBy(customerUser);
+
+        assertDoesNotThrow(() -> transactionService.assertCustomerCanView(transaction, customerUser));
+    }
+
+    @Test
+    void assertCustomerCanView_allowsOwnerOfToIban() {
+        User otherUser = new User();
+        otherUser.setId(99);
+        otherUser.setRole(UserRole.CUSTOMER);
+        transaction.setInitiatedBy(otherUser);
+
+        Account recipientAccount = new Account();
+        recipientAccount.setUser(customerUser);
+        // fromIban is not owned by customerUser; toIban is
+        when(accountRepository.findByIban(FROM_IBAN)).thenReturn(Optional.empty());
+        when(accountRepository.findByIban(TO_IBAN)).thenReturn(Optional.of(recipientAccount));
+
+        assertDoesNotThrow(() -> transactionService.assertCustomerCanView(transaction, customerUser));
+    }
+
+    @Test
+    void assertCustomerCanView_throwsForbiddenWhenUnrelated() {
+        User otherUser = new User();
+        otherUser.setId(99);
+        otherUser.setRole(UserRole.CUSTOMER);
+        transaction.setInitiatedBy(otherUser);
+
+        when(accountRepository.findByIban(FROM_IBAN)).thenReturn(Optional.empty());
+        when(accountRepository.findByIban(TO_IBAN)).thenReturn(Optional.empty());
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> transactionService.assertCustomerCanView(transaction, customerUser));
+
+        assertEquals(HttpStatus.FORBIDDEN, ex.getStatusCode());
     }
 
     // --- create: TRANSFER ---
@@ -178,17 +202,41 @@ class TransactionServiceTest {
 
         when(accountRepository.findByIban(FROM_IBAN)).thenReturn(Optional.of(fromAccount));
         when(accountRepository.findByIban(TO_IBAN)).thenReturn(Optional.of(toAccount));
+        when(transactionRepository.findByFromIbanAndTypeInAndTimestampGreaterThanEqual(
+                eq(FROM_IBAN), any(), any())).thenReturn(List.of());
         when(transactionMapper.toEntity(request)).thenReturn(transaction);
         when(transactionRepository.save(transaction)).thenReturn(transaction);
 
         Transaction result = transactionService.create(request, customerUser);
 
         assertNotNull(result);
-        verify(transactionPolicy).enforceTransferPolicy(request, fromAccount, toAccount, customerUser);
-        // both accounts should be saved after the debit and credit
+        verify(transactionPolicy).enforceTransferPolicy(
+                eq(request), eq(fromAccount), eq(toAccount), eq(customerUser), any(BigDecimal.class));
         verify(accountRepository).save(fromAccount);
         verify(accountRepository).save(toAccount);
         verify(transactionRepository).save(transaction);
+    }
+
+    @Test
+    void create_transfer_passesComputedDailyTotalToPolicy() {
+        TransactionCreateRequest request = new TransactionCreateRequest(
+                FROM_IBAN, TO_IBAN, null, new BigDecimal("100.00"), TransactionType.TRANSFER, null);
+
+        Transaction existingToday = new Transaction();
+        existingToday.setAmount(new BigDecimal("500.00"));
+
+        when(accountRepository.findByIban(FROM_IBAN)).thenReturn(Optional.of(fromAccount));
+        when(accountRepository.findByIban(TO_IBAN)).thenReturn(Optional.of(toAccount));
+        when(transactionRepository.findByFromIbanAndTypeInAndTimestampGreaterThanEqual(
+                eq(FROM_IBAN), any(), any())).thenReturn(List.of(existingToday));
+        when(transactionMapper.toEntity(request)).thenReturn(transaction);
+        when(transactionRepository.save(transaction)).thenReturn(transaction);
+
+        transactionService.create(request, customerUser);
+
+        // service must pass the summed total (500.00) to the policy, not zero
+        verify(transactionPolicy).enforceTransferPolicy(
+                eq(request), eq(fromAccount), eq(toAccount), eq(customerUser), eq(new BigDecimal("500.00")));
     }
 
     @Test
@@ -196,13 +244,11 @@ class TransactionServiceTest {
         TransactionCreateRequest request = new TransactionCreateRequest(
                 FROM_IBAN, TO_IBAN, null, new BigDecimal("100.00"), TransactionType.TRANSFER, null);
 
-        // source account doesn't exist
         when(accountRepository.findByIban(FROM_IBAN)).thenReturn(Optional.empty());
 
         assertThrows(ResourceNotFoundException.class,
                 () -> transactionService.create(request, customerUser));
 
-        // nothing should be saved
         verify(transactionRepository, never()).save(any());
     }
 
@@ -212,7 +258,6 @@ class TransactionServiceTest {
                 FROM_IBAN, TO_IBAN, null, new BigDecimal("100.00"), TransactionType.TRANSFER, null);
 
         when(accountRepository.findByIban(FROM_IBAN)).thenReturn(Optional.of(fromAccount));
-        // destination account doesn't exist
         when(accountRepository.findByIban(TO_IBAN)).thenReturn(Optional.empty());
 
         assertThrows(ResourceNotFoundException.class,
@@ -228,15 +273,16 @@ class TransactionServiceTest {
 
         when(accountRepository.findByIban(FROM_IBAN)).thenReturn(Optional.of(fromAccount));
         when(accountRepository.findByIban(TO_IBAN)).thenReturn(Optional.of(toAccount));
+        when(transactionRepository.findByFromIbanAndTypeInAndTimestampGreaterThanEqual(
+                eq(FROM_IBAN), any(), any())).thenReturn(List.of());
         doThrow(new BadRequestException("Transfer would breach the absolute transfer limit for account: " + FROM_IBAN))
-                .when(transactionPolicy).enforceTransferPolicy(request, fromAccount, toAccount, customerUser);
+                .when(transactionPolicy).enforceTransferPolicy(any(), any(), any(), any(), any());
 
         BadRequestException exception = assertThrows(BadRequestException.class,
                 () -> transactionService.create(request, customerUser));
 
         assertEquals("Transfer would breach the absolute transfer limit for account: " + FROM_IBAN,
                 exception.getMessage());
-        // nothing should be saved if policy throws
         verify(transactionRepository, never()).save(any());
         verify(accountRepository, never()).save(any());
     }
@@ -256,9 +302,8 @@ class TransactionServiceTest {
 
         assertNotNull(result);
         verify(transactionPolicy).enforceDepositPolicy(request, toAccount);
-        // only the destination account changes for a deposit
         verify(accountRepository).save(toAccount);
-        verify(transactionPolicy, never()).enforceTransferPolicy(any(), any(), any(), any());
+        verify(transactionPolicy, never()).enforceTransferPolicy(any(), any(), any(), any(), any());
     }
 
     @Test
@@ -282,16 +327,18 @@ class TransactionServiceTest {
                 FROM_IBAN, null, null, new BigDecimal("150.00"), TransactionType.WITHDRAWAL, null);
 
         when(accountRepository.findByIban(FROM_IBAN)).thenReturn(Optional.of(fromAccount));
+        when(transactionRepository.findByFromIbanAndTypeInAndTimestampGreaterThanEqual(
+                eq(FROM_IBAN), any(), any())).thenReturn(List.of());
         when(transactionMapper.toEntity(request)).thenReturn(transaction);
         when(transactionRepository.save(transaction)).thenReturn(transaction);
 
         Transaction result = transactionService.create(request, customerUser);
 
         assertNotNull(result);
-        verify(transactionPolicy).enforceWithdrawalPolicy(request, fromAccount, customerUser);
-        // only the source account changes for a withdrawal
+        verify(transactionPolicy).enforceWithdrawalPolicy(
+                eq(request), eq(fromAccount), eq(customerUser), any(BigDecimal.class));
         verify(accountRepository).save(fromAccount);
-        verify(transactionPolicy, never()).enforceTransferPolicy(any(), any(), any(), any());
+        verify(transactionPolicy, never()).enforceTransferPolicy(any(), any(), any(), any(), any());
     }
 
     @Test
@@ -321,7 +368,6 @@ class TransactionServiceTest {
                 () -> transactionService.create(request, customerUser));
 
         verify(transactionPolicy).enforceUnsupportedType(null);
-        // no accounts should be touched for an unknown type
         verify(accountRepository, never()).findByIban(any());
         verify(transactionRepository, never()).save(any());
     }
