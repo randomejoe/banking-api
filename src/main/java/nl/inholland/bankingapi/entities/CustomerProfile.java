@@ -53,9 +53,4 @@ public class CustomerProfile {
         this.phoneNumber = phoneNumber;
         this.status = status;
     }
-
-    public int getUserId() {
-        // uses the stored column, not profile.getUser().getId()
-        return userId;
-    }
 }

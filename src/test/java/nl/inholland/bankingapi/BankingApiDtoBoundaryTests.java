@@ -2,8 +2,8 @@ package nl.inholland.bankingapi;
 
 import nl.inholland.bankingapi.controllers.AccountController;
 import nl.inholland.bankingapi.controllers.AuthController;
-import nl.inholland.bankingapi.controllers.UserController;
 import nl.inholland.bankingapi.controllers.TransactionController;
+import nl.inholland.bankingapi.controllers.UserController;
 import nl.inholland.bankingapi.dtos.CurrentUserResponse;
 import nl.inholland.bankingapi.dtos.CustomerDetailResponse;
 import nl.inholland.bankingapi.dtos.CustomerProfileResponse;
