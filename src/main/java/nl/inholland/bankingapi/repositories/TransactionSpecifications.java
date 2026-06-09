@@ -35,9 +35,12 @@ public class TransactionSpecifications {
 
     private static Specification<Transaction> withIban(String iban) {
         if (iban == null || iban.isBlank()) return null;
-        return (root, q, cb) -> cb.or(
-                cb.equal(root.get("fromIban"), iban),
-                cb.equal(root.get("toIban"), iban));
+        return (root, q, cb) -> {
+            String pattern = "%" + iban.toLowerCase() + "%";
+            return cb.or(
+                    cb.like(cb.lower(root.get("fromIban")), pattern),
+                    cb.like(cb.lower(root.get("toIban")), pattern));
+        };
     }
 
     private static Specification<Transaction> withType(TransactionType type) {
