@@ -119,11 +119,11 @@ class CustomerServiceTest {
 
     // --- updateCustomer ---
 
-     @Test
-     void updateCustomer_happyPath_updatesNameAndPhoneAndSavesProfile() {
-         when(userRepository.findByIdAndRole(1, UserRole.CUSTOMER)).thenReturn(Optional.of(customer));
-         when(customerProfileRepository.findByUser_Id(1)).thenReturn(profile);
-         when(customerProfileRepository.save(profile)).thenReturn(profile);
+      @Test
+      void updateCustomer_happyPath_updatesNameAndPhoneAndSavesProfile() {
+          when(userRepository.findByIdAndRoleWithRelations(1, UserRole.CUSTOMER)).thenReturn(Optional.of(customer));
+          when(customerProfileRepository.findByUser_Id(1)).thenReturn(profile);
+          when(customerProfileRepository.save(profile)).thenReturn(profile);
 
          CustomerUpdateRequest request = new CustomerUpdateRequest(null, "Bob", "Jones", "0698765432", null, null);
          CustomerProfile result = customerService.updateCustomer(1, request);
@@ -139,11 +139,11 @@ class CustomerServiceTest {
          verify(accountService, never()).createAccountsForUser(any(), any(), any());
      }
 
-     @Test
-     void updateCustomer_whenStatusChangesToActive_createsAccountsForUser() {
-         when(userRepository.findByIdAndRole(1, UserRole.CUSTOMER)).thenReturn(Optional.of(customer));
-         when(customerProfileRepository.findByUser_Id(1)).thenReturn(profile);
-         when(customerProfileRepository.save(profile)).thenReturn(profile);
+      @Test
+      void updateCustomer_whenStatusChangesToActive_createsAccountsForUser() {
+          when(userRepository.findByIdAndRoleWithRelations(1, UserRole.CUSTOMER)).thenReturn(Optional.of(customer));
+          when(customerProfileRepository.findByUser_Id(1)).thenReturn(profile);
+          when(customerProfileRepository.save(profile)).thenReturn(profile);
 
          // Activating a PENDING customer triggers account creation with the provided limits.
          CustomerUpdateRequest request = new CustomerUpdateRequest(
@@ -157,12 +157,12 @@ class CustomerServiceTest {
                  eq(customer), eq(new BigDecimal("1000.00")), eq(new BigDecimal("5000.00")));
      }
 
-     @Test
-     void updateCustomer_alreadyActive_doesNotCreateAccountsAgain() {
-         profile.setStatus(CustomerStatus.ACTIVE);
-         when(userRepository.findByIdAndRole(1, UserRole.CUSTOMER)).thenReturn(Optional.of(customer));
-         when(customerProfileRepository.findByUser_Id(1)).thenReturn(profile);
-         when(customerProfileRepository.save(profile)).thenReturn(profile);
+      @Test
+      void updateCustomer_alreadyActive_doesNotCreateAccountsAgain() {
+          profile.setStatus(CustomerStatus.ACTIVE);
+          when(userRepository.findByIdAndRoleWithRelations(1, UserRole.CUSTOMER)).thenReturn(Optional.of(customer));
+          when(customerProfileRepository.findByUser_Id(1)).thenReturn(profile);
+          when(customerProfileRepository.save(profile)).thenReturn(profile);
 
          // Setting status to ACTIVE when already ACTIVE should not trigger account creation.
          CustomerUpdateRequest request = new CustomerUpdateRequest(
@@ -173,9 +173,9 @@ class CustomerServiceTest {
          verify(accountService, never()).createAccountsForUser(any(), any(), any());
      }
 
-     @Test
-     void updateCustomer_whenUserNotFound_throwsResourceNotFound() {
-         when(userRepository.findByIdAndRole(99, UserRole.CUSTOMER)).thenReturn(Optional.empty());
+      @Test
+      void updateCustomer_whenUserNotFound_throwsResourceNotFound() {
+          when(userRepository.findByIdAndRoleWithRelations(99, UserRole.CUSTOMER)).thenReturn(Optional.empty());
 
          CustomerUpdateRequest request = new CustomerUpdateRequest(null, "Bob", null, null, null, null);
 
@@ -185,9 +185,9 @@ class CustomerServiceTest {
          verify(customerProfileRepository, never()).save(any());
      }
 
-     @Test
-     void updateCustomer_whenUserIsNotCustomer_throwsResourceNotFound() {
-         when(userRepository.findByIdAndRole(1, UserRole.CUSTOMER)).thenReturn(Optional.empty());
+      @Test
+      void updateCustomer_whenUserIsNotCustomer_throwsResourceNotFound() {
+          when(userRepository.findByIdAndRoleWithRelations(1, UserRole.CUSTOMER)).thenReturn(Optional.empty());
 
          CustomerUpdateRequest request = new CustomerUpdateRequest(null, "Bob", null, null, null, null);
 
@@ -196,10 +196,10 @@ class CustomerServiceTest {
          verify(customerProfileRepository, never()).save(any());
      }
 
-     @Test
-     void updateCustomer_whenProfileNotFound_throwsResourceNotFound() {
-         when(userRepository.findByIdAndRole(1, UserRole.CUSTOMER)).thenReturn(Optional.of(customer));
-         when(customerProfileRepository.findByUser_Id(1)).thenReturn(null);
+      @Test
+      void updateCustomer_whenProfileNotFound_throwsResourceNotFound() {
+          when(userRepository.findByIdAndRoleWithRelations(1, UserRole.CUSTOMER)).thenReturn(Optional.of(customer));
+          when(customerProfileRepository.findByUser_Id(1)).thenReturn(null);
 
          CustomerUpdateRequest request = new CustomerUpdateRequest(null, "Bob", null, null, null, null);
 
@@ -207,11 +207,11 @@ class CustomerServiceTest {
          verify(customerProfileRepository, never()).save(any());
      }
 
-     @Test
-     void updateCustomer_partialUpdate_onlyChangesProvidedFields() {
-         when(userRepository.findByIdAndRole(1, UserRole.CUSTOMER)).thenReturn(Optional.of(customer));
-         when(customerProfileRepository.findByUser_Id(1)).thenReturn(profile);
-         when(customerProfileRepository.save(profile)).thenReturn(profile);
+      @Test
+      void updateCustomer_partialUpdate_onlyChangesProvidedFields() {
+          when(userRepository.findByIdAndRoleWithRelations(1, UserRole.CUSTOMER)).thenReturn(Optional.of(customer));
+          when(customerProfileRepository.findByUser_Id(1)).thenReturn(profile);
+          when(customerProfileRepository.save(profile)).thenReturn(profile);
 
          // Only firstName provided — lastName, phone, and status must remain unchanged.
          CustomerUpdateRequest request = new CustomerUpdateRequest(null, "UpdatedFirst", null, null, null, null);

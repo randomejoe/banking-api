@@ -1,0 +1,7 @@
+.git
+.idea
+.omc
+.omx
+target
+.DS_Store
+*.iml
