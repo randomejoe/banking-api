@@ -43,7 +43,7 @@ public class CustomerService {
     }
 
     public User getCustomerUserById(int id) {
-        return userRepository.findByIdAndRole(id, UserRole.CUSTOMER)
+        return userRepository.findByIdAndRoleWithRelations(id, UserRole.CUSTOMER)
                 .orElseThrow(() -> new ResourceNotFoundException("Customer not found: " + id));
     }
 

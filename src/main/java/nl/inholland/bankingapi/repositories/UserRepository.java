@@ -17,7 +17,12 @@ public interface UserRepository extends JpaRepository<User, Integer> {
 
     Optional<User> findByEmail(String email);
 
-    Optional<User> findByIdAndRole(int id, UserRole role);
+
+    @Query("SELECT DISTINCT u FROM User u " +
+           "LEFT JOIN FETCH u.customerProfile " +
+           "LEFT JOIN FETCH u.accounts " +
+           "WHERE u.id = :id AND u.role = :role")
+    Optional<User> findByIdAndRoleWithRelations(@Param("id") int id, @Param("role") UserRole role);
 
     @Query("SELECT u FROM User u JOIN CustomerProfile cp ON cp.user.id = u.id " +
            "WHERE (:status IS NULL OR cp.status = :status) AND " +

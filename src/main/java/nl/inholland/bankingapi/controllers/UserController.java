@@ -18,7 +18,7 @@ import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("users")
-public class UserController extends BaseController {
+public class UserController {
 
     private final CustomerService customerService;
     private final CustomerMapper customerMapper;
