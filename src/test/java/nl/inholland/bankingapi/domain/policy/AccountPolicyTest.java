@@ -22,7 +22,7 @@ class AccountPolicyTest {
         accountPolicy = new AccountPolicy();
 
         account = new Account();
-        account.setIban("NL95INHL0000000001");
+        account.setIban("NL95INHO0000000001");
         account.setType(AccountType.CHECKING);
         account.setStatus(AccountStatus.ACTIVE);
         account.setBalance(new BigDecimal("100.00"));

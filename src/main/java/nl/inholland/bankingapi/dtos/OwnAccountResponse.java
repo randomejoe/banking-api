@@ -6,8 +6,7 @@ import nl.inholland.bankingapi.entities.enums.AccountType;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
-public record AccountResponse(
-        int userId,
+public record OwnAccountResponse(
         String iban,
         AccountType type,
         BigDecimal balance,
@@ -15,4 +14,4 @@ public record AccountResponse(
         BigDecimal dailyTransferLimit,
         AccountStatus status,
         LocalDateTime createdAt
-) implements AccountListItemResponse {}
+) {}

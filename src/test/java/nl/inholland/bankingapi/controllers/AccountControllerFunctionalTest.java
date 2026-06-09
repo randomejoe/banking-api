@@ -114,20 +114,31 @@ class AccountControllerFunctionalTest {
     // --- GET /accounts ---
 
     @Test
-    void getAccounts_customerOnlySeesOwnAccounts() throws Exception {
+    void getAccounts_customerGetsForbidden() throws Exception {
+        User customer = createCustomer("ac-customer-forbidden@example.com");
+
+        mockMvc.perform(get("/accounts")
+                        .header("Authorization", bearerToken(customer)))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void getAccountsMe_customerOnlySeesOwnAccounts() throws Exception {
         User customer1 = createCustomer("ac-c1@example.com");
         User customer2 = createCustomer("ac-c2@example.com");
 
         createAccount(customer1, "FTACCTC101");
         createAccount(customer2, "FTACCTC201");
 
-        // customers are filtered to their own accounts
-        mockMvc.perform(get("/accounts")
+        mockMvc.perform(get("/accounts/me?size=100")
                         .header("Authorization", bearerToken(customer1)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content").isArray())
-                .andExpect(jsonPath("$.content[*].userId",
-                        everyItem(is(customer1.getId()))));
+                .andExpect(jsonPath("$.content[*].iban",
+                        hasItem("FTACCTC101")))
+                .andExpect(jsonPath("$.content[*].iban",
+                        not(hasItem("FTACCTC201"))))
+                .andExpect(jsonPath("$.content[0].userId").doesNotExist());
     }
 
     @Test
@@ -149,24 +160,24 @@ class AccountControllerFunctionalTest {
     }
 
     @Test
-    void getAccounts_customerNameFilterCannotExposeOtherCustomerAccounts() throws Exception {
+    void getAccountsMe_ignoresUserIdFilterByNotAcceptingPrivateSearchParameters() throws Exception {
         User customer1 = createCustomer("ac-name-c1@example.com");
         User customer2 = createCustomer("ac-name-c2-target@example.com");
 
         createAccount(customer1, "FTACCTNAMEC101");
         createAccount(customer2, "FTACCTNAMEC201");
 
-        mockMvc.perform(get("/accounts?name=target&size=100")
+        mockMvc.perform(get("/accounts/me?userId=" + customer2.getId() + "&name=target&size=100")
                         .header("Authorization", bearerToken(customer1)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.content[*].userId",
-                        everyItem(is(customer1.getId()))))
+                .andExpect(jsonPath("$.content[*].iban",
+                        hasItem("FTACCTNAMEC101")))
                 .andExpect(jsonPath("$.content[*].iban",
                         not(hasItem("FTACCTNAMEC201"))));
     }
 
     @Test
-    void getAccounts_customerCanSearchOtherCustomerCheckingIbanByNameWithSafeFieldsOnly() throws Exception {
+    void getTransferTargets_customerCanSearchOtherCustomerCheckingIbanByNameWithSafeFieldsOnly() throws Exception {
         User searchingCustomer = createCustomer("ac-lookup-searcher@example.com");
         User matchingCustomer = createCustomer("ac-lookup-match@example.com");
 
@@ -178,20 +189,21 @@ class AccountControllerFunctionalTest {
         createAccount(matchingCustomer, "FTACCTLOOKUPCHK", AccountType.CHECKING, AccountStatus.ACTIVE);
         createAccount(matchingCustomer, "FTACCTLOOKUPSAV", AccountType.SAVINGS, AccountStatus.ACTIVE);
 
-        mockMvc.perform(get("/accounts?name=Recipient&size=100")
+        mockMvc.perform(get("/accounts/transfer-targets?name=Recipient&size=100")
                         .header("Authorization", bearerToken(searchingCustomer)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content.length()").value(1))
                 .andExpect(jsonPath("$.content[0].iban").value("FTACCTLOOKUPCHK"))
                 .andExpect(jsonPath("$.content[0].firstName").value("Recipient"))
                 .andExpect(jsonPath("$.content[0].lastName").value("Lookup"))
+                .andExpect(jsonPath("$.content[0].userId").doesNotExist())
                 .andExpect(jsonPath("$.content[0].balance").doesNotExist())
                 .andExpect(jsonPath("$.content[0].absoluteTransferLimit").doesNotExist())
                 .andExpect(jsonPath("$.content[0].dailyTransferLimit").doesNotExist());
     }
 
     @Test
-    void getAccounts_customerLookupHidesInactiveCheckingAccounts() throws Exception {
+    void getTransferTargets_customerLookupHidesInactiveCheckingAccounts() throws Exception {
         User searchingCustomer = createCustomer("ac-lookup-inactive-searcher@example.com");
         User matchingCustomer = createCustomer("ac-lookup-inactive-match@example.com");
 
@@ -201,14 +213,14 @@ class AccountControllerFunctionalTest {
 
         createAccount(matchingCustomer, "FTACCTINACTIVECHK", AccountType.CHECKING, AccountStatus.CLOSED);
 
-        mockMvc.perform(get("/accounts?name=Inactive&size=100")
+        mockMvc.perform(get("/accounts/transfer-targets?name=Inactive&size=100")
                         .header("Authorization", bearerToken(searchingCustomer)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content.length()").value(0));
     }
 
     @Test
-    void getAccounts_customerLookupIgnoresPrivateAccountFiltersAndKeepsSafeSearchShape() throws Exception {
+    void getTransferTargets_customerLookupIgnoresPrivateAccountFiltersAndKeepsSafeSearchShape() throws Exception {
         User searchingCustomer = createCustomer("ac-lookup-filter-searcher@example.com");
         User matchingCustomer = createCustomer("ac-lookup-filter-match@example.com");
 
@@ -219,7 +231,7 @@ class AccountControllerFunctionalTest {
         createAccount(searchingCustomer, "FTACCTFILTEROWN");
         createAccount(matchingCustomer, "FTACCTFILTERCHK", AccountType.CHECKING, AccountStatus.ACTIVE);
 
-        mockMvc.perform(get("/accounts?name=Filtered&userId=" + searchingCustomer.getId() + "&type=SAVINGS&status=CLOSED&size=100")
+        mockMvc.perform(get("/accounts/transfer-targets?name=Filtered&userId=" + searchingCustomer.getId() + "&type=SAVINGS&status=CLOSED&size=100")
                         .header("Authorization", bearerToken(searchingCustomer)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content.length()").value(1))
@@ -278,7 +290,7 @@ class AccountControllerFunctionalTest {
     }
 
     @Test
-    void getAccounts_pendingCustomerGetsForbidden() throws Exception {
+    void getAccountsMe_pendingCustomerGetsForbidden() throws Exception {
         User customer = createCustomer("ac-pending@example.com");
         CustomerProfile profile = customerProfileRepository.findByUser_Id(customer.getId());
         profile.setStatus(CustomerStatus.PENDING);
@@ -286,13 +298,13 @@ class AccountControllerFunctionalTest {
 
         createAccount(customer, "FTACCTPENDING01");
 
-        mockMvc.perform(get("/accounts")
+        mockMvc.perform(get("/accounts/me")
                         .header("Authorization", bearerToken(customer)))
                 .andExpect(status().isForbidden());
     }
 
     @Test
-    void getAccounts_closedCustomerGetsForbidden() throws Exception {
+    void getTransferTargets_closedCustomerGetsForbidden() throws Exception {
         User customer = createCustomer("ac-closed@example.com");
         CustomerProfile profile = customerProfileRepository.findByUser_Id(customer.getId());
         profile.setStatus(CustomerStatus.CLOSED);
@@ -300,7 +312,7 @@ class AccountControllerFunctionalTest {
 
         createAccount(customer, "FTACCTCLOSED01");
 
-        mockMvc.perform(get("/accounts")
+        mockMvc.perform(get("/accounts/transfer-targets?name=Test")
                         .header("Authorization", bearerToken(customer)))
                 .andExpect(status().isForbidden());
     }
@@ -331,6 +343,22 @@ class AccountControllerFunctionalTest {
                 .andExpect(jsonPath("$.absoluteTransferLimit").value(200.00))
                 .andExpect(jsonPath("$.dailyTransferLimit").value(3000.00))
                 .andExpect(jsonPath("$.status").value("CLOSED"));
+    }
+
+    @Test
+    void updateAccount_closeNonZeroBalanceReturns400() throws Exception {
+        User customer = createCustomer("ac-close-balance@example.com");
+        User employee = createEmployee("ac-close-balance-emp@example.com");
+        Account account = createAccount(customer, "FTACCTCLOSEBAL01");
+
+        Map<String, Object> request = new HashMap<>();
+        request.put("status", "CLOSED");
+
+        mockMvc.perform(patch("/accounts/{iban}", account.getIban())
+                        .header("Authorization", bearerToken(employee))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest());
     }
 
     @Test

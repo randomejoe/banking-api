@@ -2,37 +2,25 @@ package nl.inholland.bankingapi.domain.policy;
 
 import nl.inholland.bankingapi.dtos.TransactionCreateRequest;
 import nl.inholland.bankingapi.entities.Account;
-import nl.inholland.bankingapi.entities.Transaction;
 import nl.inholland.bankingapi.entities.User;
 import nl.inholland.bankingapi.entities.enums.AccountStatus;
 import nl.inholland.bankingapi.entities.enums.AccountType;
-import nl.inholland.bankingapi.entities.enums.TransactionType;
 import nl.inholland.bankingapi.entities.enums.UserRole;
 import nl.inholland.bankingapi.exceptions.BadRequestException;
-import nl.inholland.bankingapi.repositories.TransactionRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.math.BigDecimal;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
 
 @Component
 public class TransactionPolicy {
 
-    private static final java.util.List<TransactionType> OUTGOING_LIMIT_TYPES =
-            java.util.List.of(TransactionType.TRANSFER, TransactionType.WITHDRAWAL);
-
-    private final TransactionRepository transactionRepository;
-
-    public TransactionPolicy(TransactionRepository transactionRepository) {
-        this.transactionRepository = transactionRepository;
-    }
-
     // --- main validation methods (called by TransactionService) ---
 
-    public void enforceTransferPolicy(TransactionCreateRequest request, Account fromAccount, Account toAccount, User initiatedBy) {
+    public void enforceTransferPolicy(TransactionCreateRequest request,
+                                      Account fromAccount, Account toAccount,
+                                      User initiatedBy, BigDecimal outgoingToday) {
         enforceTransferIbansPresent(request.fromIban(), request.toIban());
         enforceNotSameAccount(request.fromIban(), request.toIban());
         enforceAccountIsActive(fromAccount, "Source");
@@ -40,7 +28,7 @@ public class TransactionPolicy {
         enforceSourceAccountOwner(fromAccount, initiatedBy);
         enforceExternalCustomerTransferTargetsChecking(fromAccount, toAccount, initiatedBy);
         enforceAbsoluteTransferLimit(fromAccount, request.amount());
-        enforceDailyTransferLimit(fromAccount, request.amount());
+        enforceDailyTransferLimit(fromAccount, outgoingToday, request.amount());
     }
 
     public void enforceDepositPolicy(TransactionCreateRequest request, Account toAccount) {
@@ -48,12 +36,14 @@ public class TransactionPolicy {
         enforceAccountIsActive(toAccount, "Destination");
     }
 
-    public void enforceWithdrawalPolicy(TransactionCreateRequest request, Account fromAccount, User initiatedBy) {
+    public void enforceWithdrawalPolicy(TransactionCreateRequest request,
+                                        Account fromAccount, User initiatedBy,
+                                        BigDecimal outgoingToday) {
         enforceWithdrawalIbanPresent(request.fromIban());
         enforceAccountIsActive(fromAccount, "Source");
         enforceSourceAccountOwner(fromAccount, initiatedBy);
         enforceAbsoluteTransferLimit(fromAccount, request.amount());
-        enforceDailyTransferLimit(fromAccount, request.amount());
+        enforceDailyTransferLimit(fromAccount, outgoingToday, request.amount());
     }
 
     // --- individual rules (also tested directly) ---
@@ -117,20 +107,18 @@ public class TransactionPolicy {
         }
     }
 
-    public void enforceDailyTransferLimit(Account from, BigDecimal amount) {
-        LocalDateTime startOfDay = LocalDate.now().atStartOfDay();
-        BigDecimal outgoingToday = transactionRepository
-                .findByFromIbanAndTypeInAndTimestampGreaterThanEqual(from.getIban(), OUTGOING_LIMIT_TYPES, startOfDay)
-                .stream()
-                .map(Transaction::getAmount)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
+    /**
+     * Pure math check: outgoingToday is pre-computed by TransactionService
+     * from the repository so this class stays free of database dependencies.
+     */
+    public void enforceDailyTransferLimit(Account from, BigDecimal outgoingToday, BigDecimal amount) {
         if (outgoingToday.add(amount).compareTo(from.getDailyTransferLimit()) > 0) {
             throw new BadRequestException(
                     "Transaction would exceed the daily transfer limit for account: " + from.getIban());
         }
     }
 
-    public void enforceUnsupportedType(TransactionType type) {
+    public void enforceUnsupportedType(nl.inholland.bankingapi.entities.enums.TransactionType type) {
         throw new BadRequestException("Unsupported transaction type: " + type);
     }
 }

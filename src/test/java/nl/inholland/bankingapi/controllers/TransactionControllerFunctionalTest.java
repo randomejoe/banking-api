@@ -375,6 +375,43 @@ class TransactionControllerFunctionalTest {
     }
 
     @Test
+    void getTransactions_recipientCustomerSeesIncomingTransfer() throws Exception {
+        // Alice sends money to Charlie. Charlie's account is the toIban.
+        // Before the fix, Charlie could not see this transaction because he didn't initiate it.
+        User alice = createCustomer("ft-alice@example.com");
+        User charlie = createCustomer("ft-charlie@example.com");
+        Account aliceAccount = createAccount(alice, "FT-IBAN-ALICE");
+        Account charlieAccount = createAccount(charlie, "FT-IBAN-CHARLIE");
+
+        Transaction transfer = createTransaction(alice,
+                aliceAccount.getIban(), charlieAccount.getIban(),
+                TransactionType.TRANSFER, new BigDecimal("50.00"));
+
+        // Charlie must see the transfer in his own history
+        mockMvc.perform(get("/transactions")
+                        .header("Authorization", bearerToken(charlie)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[?(@.id == " + transfer.getId() + ")]").exists());
+    }
+
+    @Test
+    void getTransactionById_recipientCustomerCanViewIncomingTransfer() throws Exception {
+        User alice = createCustomer("ft-alice-detail@example.com");
+        User charlie = createCustomer("ft-charlie-detail@example.com");
+        Account aliceAccount = createAccount(alice, "FT-IBAN-ALICE-DETAIL");
+        Account charlieAccount = createAccount(charlie, "FT-IBAN-CHARLIE-DETAIL");
+
+        Transaction transfer = createTransaction(alice,
+                aliceAccount.getIban(), charlieAccount.getIban(),
+                TransactionType.TRANSFER, new BigDecimal("50.00"));
+
+        mockMvc.perform(get("/transactions/{id}", transfer.getId())
+                        .header("Authorization", bearerToken(charlie)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(transfer.getId()));
+    }
+
+    @Test
     void getTransactions_pendingCustomerGetsForbidden() throws Exception {
         User customer = createCustomer("ft-history-pending@example.com");
         CustomerProfile profile = customerProfileRepository.findByUser_Id(customer.getId());
