@@ -35,10 +35,6 @@ build/
 ### Environment variables ###
 .env
 
-### Node / Wrangler ###
-node_modules/
-.npm-cache/
-
 ### Local project tooling ###
 .omx/
 .omc/
