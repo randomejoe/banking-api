@@ -98,18 +98,20 @@ public class DataLoader implements ApplicationRunner {
 
         // High balance and generous limits so Alice can initiate all 25 bulk transfers
         // through the API without hitting the absolute or daily limit.
+        BigDecimal aliceCheckingBalance = new BigDecimal("50000.00");
         Account aliceChecking = accountRepository.save(new Account(0, alice,
                 "NL01INHO0000000001", AccountType.CHECKING,
-                new BigDecimal("50000.00"),
-                new BigDecimal("-500.00"),
-                new BigDecimal("100000.00"),
+                aliceCheckingBalance,
+                new BigDecimal("0.00"),
+                aliceCheckingBalance.multiply(new BigDecimal("0.10")),
                 AccountStatus.ACTIVE, LocalDateTime.now()));
 
+        BigDecimal aliceSavingsBalance = new BigDecimal("3000.00");
         Account aliceSavings = accountRepository.save(new Account(0, alice,
                 "NL02INHO0000000002", AccountType.SAVINGS,
-                new BigDecimal("3000.00"),
-                new BigDecimal("-500.00"),
-                new BigDecimal("10000.00"),
+                aliceSavingsBalance,
+                new BigDecimal("0.00"),
+                aliceSavingsBalance.multiply(new BigDecimal("0.10")),
                 AccountStatus.ACTIVE, LocalDateTime.now()));
 
         // ------------------------------------------------------------------ //
@@ -122,11 +124,12 @@ public class DataLoader implements ApplicationRunner {
         customerProfileRepository.save(
                 new CustomerProfile(0, bob, "987654321", "0687654321", CustomerStatus.ACTIVE));
 
+        BigDecimal bobCheckingBalance = new BigDecimal("800.00");
         Account bobChecking = accountRepository.save(new Account(0, bob,
                 "NL03INHO0000000003", AccountType.CHECKING,
-                new BigDecimal("800.00"),
-                new BigDecimal("-500.00"),
-                new BigDecimal("5000.00"),
+                bobCheckingBalance,
+                new BigDecimal("0.00"),
+                bobCheckingBalance.multiply(new BigDecimal("0.10")),
                 AccountStatus.ACTIVE, LocalDateTime.now()));
 
         // ------------------------------------------------------------------ //
@@ -156,7 +159,7 @@ public class DataLoader implements ApplicationRunner {
         //  6. 25 MASS CUSTOMERS — realistic Dutch names, unique IBans         //
         //                                                                     //
         //  IBAN numbering continues from 004 → 028.                           //
-        //  Each customer receives one active checking account.                //
+        //  Each customer receives one CHECKING account and one SAVINGS account.                //
         // ------------------------------------------------------------------ //
         List<Account> massAccounts = new ArrayList<>();
 
@@ -178,14 +181,24 @@ public class DataLoader implements ApplicationRunner {
             customerProfileRepository.save(
                     new CustomerProfile(0, user, bsn, phone, CustomerStatus.ACTIVE));
 
+            BigDecimal massCheckingBalance = new BigDecimal("1000.00");
             Account account = accountRepository.save(new Account(0, user, iban,
                     AccountType.CHECKING,
-                    new BigDecimal("1000.00"),
-                    new BigDecimal("-500.00"),
-                    new BigDecimal("5000.00"),
+                    massCheckingBalance,
+                    new BigDecimal("0.00"),
+                    massCheckingBalance.multiply(new BigDecimal("0.10")),
                     AccountStatus.ACTIVE, LocalDateTime.now()));
 
             massAccounts.add(account);
+
+            String savingsIban = String.format("NL%02dINHO1%09d", i + 4, i + 4);
+            BigDecimal massSavingsBalance = new BigDecimal("500.00");
+            accountRepository.save(new Account(0, user, savingsIban,
+                    AccountType.SAVINGS,
+                    massSavingsBalance,
+                    new BigDecimal("0.00"),
+                    massSavingsBalance.multiply(new BigDecimal("0.10")),
+                    AccountStatus.ACTIVE, LocalDateTime.now()));
         }
 
         // ------------------------------------------------------------------ //
