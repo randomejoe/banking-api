@@ -17,6 +17,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
+import org.springframework.data.domain.Pageable;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -272,7 +273,7 @@ class UserControllerFunctionalTest {
                 .andExpect(status().isOk());
 
         // Activation must create exactly one CHECKING and one SAVINGS account for the customer.
-        List<Account> accounts = accountRepository.findByUser_Id(customer.getId());
+        List<Account> accounts = accountRepository.findByUser_Id(customer.getId(), Pageable.unpaged()).getContent();
         long checkingCount = accounts.stream().filter(a -> a.getType() == AccountType.CHECKING).count();
         long savingsCount  = accounts.stream().filter(a -> a.getType() == AccountType.SAVINGS).count();
         assertEquals(1, checkingCount, "Expected 1 CHECKING account");

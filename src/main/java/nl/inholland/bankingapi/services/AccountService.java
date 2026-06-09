@@ -65,10 +65,6 @@ public class AccountService {
                 .orElseThrow(() -> new ResourceNotFoundException("Account not found: " + iban));
     }
 
-    public List<Account> getByUserId(int userId) {
-        return accountRepository.findByUser_Id(userId);
-    }
-
     @Transactional
     public Account updateAccount(String iban, AccountUpdateRequest request) {
         accountPolicy.enforceValidLimits(request.absoluteTransferLimit(), request.dailyTransferLimit());

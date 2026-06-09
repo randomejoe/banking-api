@@ -30,6 +30,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Page;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
@@ -308,7 +309,7 @@ class BankingApiDtoBoundaryTests {
                 .andExpect(jsonPath("$.status").value("ACTIVE"))
                 .andExpect(content().string(not(containsString("passwordHash"))));
 
-        List<Account> accounts = accountRepository.findByUser_Id(user.getId());
+        List<Account> accounts = accountRepository.findByUser_Id(user.getId(), Pageable.unpaged()).getContent();
         assertTrue(accounts.stream().anyMatch(account -> account.getType() == AccountType.CHECKING));
         assertTrue(accounts.stream().anyMatch(account -> account.getType() == AccountType.SAVINGS));
     }

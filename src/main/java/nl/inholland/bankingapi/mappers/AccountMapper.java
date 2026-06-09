@@ -1,6 +1,5 @@
 package nl.inholland.bankingapi.mappers;
 
-import nl.inholland.bankingapi.dtos.AccountSummaryResponse;
 import nl.inholland.bankingapi.dtos.EmployeeAccountResponse;
 import nl.inholland.bankingapi.dtos.OwnAccountResponse;
 import nl.inholland.bankingapi.dtos.TransferTargetResponse;
@@ -18,6 +17,4 @@ public interface AccountMapper {
     @Mapping(source = "user.firstName", target = "firstName")
     @Mapping(source = "user.lastName", target = "lastName")
     TransferTargetResponse toTransferTargetResponse(Account account);
-
-    AccountSummaryResponse toSummary(Account account);
 }

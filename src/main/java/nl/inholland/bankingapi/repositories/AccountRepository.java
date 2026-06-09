@@ -20,8 +20,6 @@ public interface AccountRepository extends JpaRepository<Account, Integer>, JpaS
 
     boolean existsByIban(String iban);
 
-    List<Account> findByUser_Id(int userId);
-
     Page<Account> findByUser_Id(int userId, Pageable pageable);
 
     @Query("""
