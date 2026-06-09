@@ -11,20 +11,40 @@ import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 
 import java.math.BigDecimal;
-import java.util.List;
 
 @Mapper(componentModel = "spring", uses = {AccountMapper.class}, imports = {BigDecimal.class, Account.class})
 public interface CustomerMapper {
 
-    @Mapping(source = "user.id", target = "id")
-    CustomerSummaryResponse toSummary(User user, CustomerProfile profile);
+    @Mapping(source = "id", target = "id")
+    @Mapping(source = "email", target = "email")
+    @Mapping(source = "firstName", target = "firstName")
+    @Mapping(source = "lastName", target = "lastName")
+    @Mapping(source = "role", target = "role")
+    @Mapping(source = "customerProfile.status", target = "status")
+    @Mapping(source = "createdAt", target = "createdAt")
+    CustomerSummaryResponse toSummary(User user);
 
-    @Mapping(source = "user.id", target = "id")
-    @Mapping(target = "totalBalance", expression = "java(accounts.stream().map(Account::getBalance).reduce(BigDecimal.ZERO, BigDecimal::add))")
-    CustomerDetailResponse toDetail(User user, CustomerProfile profile, List<Account> accounts);
+    @Mapping(source = "id", target = "id")
+    @Mapping(source = "email", target = "email")
+    @Mapping(source = "firstName", target = "firstName")
+    @Mapping(source = "lastName", target = "lastName")
+    @Mapping(source = "customerProfile.bsn", target = "bsn")
+    @Mapping(source = "customerProfile.phoneNumber", target = "phoneNumber")
+    @Mapping(source = "customerProfile.status", target = "status")
+    @Mapping(source = "createdAt", target = "createdAt")
+    @Mapping(source = "accounts", target = "accounts")
+    @Mapping(target = "totalBalance", expression = "java(user.getAccounts() == null ? BigDecimal.ZERO : user.getAccounts().stream().map(Account::getBalance).reduce(BigDecimal.ZERO, BigDecimal::add))")
+    CustomerDetailResponse toDetail(User user);
 
-    @Mapping(source = "user.id", target = "id")
-    CurrentUserResponse toCurrentUser(User user, CustomerProfile profile);
+    @Mapping(source = "id", target = "id")
+    @Mapping(source = "email", target = "email")
+    @Mapping(source = "firstName", target = "firstName")
+    @Mapping(source = "lastName", target = "lastName")
+    @Mapping(source = "role", target = "role")
+    @Mapping(source = "customerProfile.status", target = "status")
+    @Mapping(source = "customerProfile.bsn", target = "bsn")
+    @Mapping(source = "customerProfile.phoneNumber", target = "phoneNumber")
+    CurrentUserResponse toCurrentUser(User user);
 
     CustomerProfileResponse toProfile(CustomerProfile profile);
 }

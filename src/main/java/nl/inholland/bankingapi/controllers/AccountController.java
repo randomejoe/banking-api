@@ -1,8 +1,10 @@
 package nl.inholland.bankingapi.controllers;
 
 import nl.inholland.bankingapi.dtos.AccountQuery;
-import nl.inholland.bankingapi.dtos.AccountResponse;
 import nl.inholland.bankingapi.dtos.AccountUpdateRequest;
+import nl.inholland.bankingapi.dtos.EmployeeAccountResponse;
+import nl.inholland.bankingapi.dtos.OwnAccountResponse;
+import nl.inholland.bankingapi.dtos.TransferTargetResponse;
 import nl.inholland.bankingapi.entities.User;
 import nl.inholland.bankingapi.mappers.AccountMapper;
 import nl.inholland.bankingapi.services.AccountService;
@@ -26,16 +28,33 @@ public class AccountController extends BaseController {
     }
 
     @GetMapping("")
-    @PreAuthorize("hasAnyRole('EMPLOYEE', 'CUSTOMER')")
-    Page<AccountResponse> getAll(@ModelAttribute AccountQuery query,
-                                 @PageableDefault(size = 20) Pageable pageable) {
+    @PreAuthorize("hasRole('EMPLOYEE')")
+    Page<EmployeeAccountResponse> getAll(@ModelAttribute AccountQuery query,
+                                         @PageableDefault(size = 20) Pageable pageable) {
+        return accountService.getAll(query, pageable)
+                .map(accountMapper::toEmployeeResponse);
+    }
+
+    @GetMapping("/me")
+    @PreAuthorize("hasRole('CUSTOMER') and @customerSecurity.isActiveCustomer(authentication)")
+    Page<OwnAccountResponse> getOwnAccounts(@PageableDefault(size = 20) Pageable pageable) {
         User current = currentUser();
-        return accountService.getAllForUser(current, query, pageable).map(accountMapper::toResponse);
+        return accountService.getOwnAccounts(current.getId(), pageable)
+                .map(accountMapper::toOwnResponse);
+    }
+
+    @GetMapping("/transfer-targets")
+    @PreAuthorize("hasRole('CUSTOMER') and @customerSecurity.isActiveCustomer(authentication)")
+    Page<TransferTargetResponse> searchTransferTargets(@RequestParam String name,
+                                                       @PageableDefault(size = 20) Pageable pageable) {
+        User current = currentUser();
+        return accountService.searchTransferTargets(current.getId(), name, pageable)
+                .map(accountMapper::toTransferTargetResponse);
     }
 
     @PatchMapping("/{iban}")
     @PreAuthorize("hasRole('EMPLOYEE')")
-    AccountResponse updateAccount(@PathVariable String iban, @RequestBody @Valid AccountUpdateRequest request) {
-        return accountMapper.toResponse(accountService.updateAccount(iban, request));
+    EmployeeAccountResponse updateAccount(@PathVariable String iban, @RequestBody @Valid AccountUpdateRequest request) {
+        return accountMapper.toEmployeeResponse(accountService.updateAccount(iban, request));
     }
 }

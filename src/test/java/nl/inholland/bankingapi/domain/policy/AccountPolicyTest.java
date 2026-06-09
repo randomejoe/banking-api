@@ -22,7 +22,7 @@ class AccountPolicyTest {
         accountPolicy = new AccountPolicy();
 
         account = new Account();
-        account.setIban("NL95INHL0000000001");
+        account.setIban("NL95INHO0000000001");
         account.setType(AccountType.CHECKING);
         account.setStatus(AccountStatus.ACTIVE);
         account.setBalance(new BigDecimal("100.00"));
@@ -50,6 +50,35 @@ class AccountPolicyTest {
     void enforceCanClose_negativeBalance_throwsIllegalArgument() {
         account.setBalance(new BigDecimal("-50.00"));
         assertThrows(IllegalArgumentException.class, () -> accountPolicy.enforceCanClose(account));
+    }
+
+    // --- enforceRequiredLimits ---
+
+    @Test
+    void enforceRequiredLimits_bothProvided_doesNotThrow() {
+        assertDoesNotThrow(() -> accountPolicy.enforceRequiredLimits(
+                new BigDecimal("500.00"), new BigDecimal("2000.00")));
+    }
+
+    @Test
+    void enforceRequiredLimits_missingAbsoluteLimit_throwsIllegalArgument() {
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> accountPolicy.enforceRequiredLimits(null, BigDecimal.ZERO));
+        assertTrue(ex.getMessage().contains("absoluteTransferLimit is required"));
+    }
+
+    @Test
+    void enforceRequiredLimits_missingDailyLimit_throwsIllegalArgument() {
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> accountPolicy.enforceRequiredLimits(BigDecimal.ZERO, null));
+        assertTrue(ex.getMessage().contains("dailyTransferLimit is required"));
+    }
+
+    @Test
+    void enforceRequiredLimits_negativeLimit_throwsIllegalArgument() {
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> accountPolicy.enforceRequiredLimits(new BigDecimal("-1.00"), BigDecimal.ZERO));
+        assertTrue(ex.getMessage().contains("absoluteTransferLimit"));
     }
 
     // --- enforceValidLimits ---

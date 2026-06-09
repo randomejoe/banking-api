@@ -4,7 +4,6 @@ import nl.inholland.bankingapi.controllers.AccountController;
 import nl.inholland.bankingapi.controllers.AuthController;
 import nl.inholland.bankingapi.controllers.UserController;
 import nl.inholland.bankingapi.controllers.TransactionController;
-import nl.inholland.bankingapi.dtos.AccountResponse;
 import nl.inholland.bankingapi.dtos.CurrentUserResponse;
 import nl.inholland.bankingapi.dtos.CustomerDetailResponse;
 import nl.inholland.bankingapi.dtos.CustomerProfileResponse;
@@ -185,6 +184,13 @@ class BankingApiDtoBoundaryTests {
                         .header("Authorization", bearerToken(employee)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content[0].iban").value(data.checking().getIban()))
+                .andExpect(content().string(not(containsString("passwordHash"))));
+
+        mockMvc.perform(get("/accounts/me")
+                        .header("Authorization", bearerToken(data.user())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].iban").exists())
+                .andExpect(jsonPath("$.content[0].userId").doesNotExist())
                 .andExpect(content().string(not(containsString("passwordHash"))));
 
         mockMvc.perform(patch("/accounts/" + data.checking().getIban())

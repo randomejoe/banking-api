@@ -5,6 +5,7 @@ import nl.inholland.bankingapi.entities.CustomerProfile;
 import nl.inholland.bankingapi.entities.User;
 import nl.inholland.bankingapi.entities.enums.CustomerStatus;
 import nl.inholland.bankingapi.entities.enums.UserRole;
+import nl.inholland.bankingapi.exceptions.ResourceNotFoundException;
 import nl.inholland.bankingapi.repositories.CustomerProfileRepository;
 import nl.inholland.bankingapi.repositories.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -23,6 +24,7 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
@@ -117,88 +119,107 @@ class CustomerServiceTest {
 
     // --- updateCustomer ---
 
-    @Test
-    void updateCustomer_happyPath_updatesNameAndPhoneAndSavesProfile() {
-        when(userRepository.findById(1)).thenReturn(Optional.of(customer));
-        when(customerProfileRepository.findByUser_Id(1)).thenReturn(profile);
-        when(customerProfileRepository.save(profile)).thenReturn(profile);
+      @Test
+      void updateCustomer_happyPath_updatesNameAndPhoneAndSavesProfile() {
+          when(userRepository.findByIdAndRoleWithRelations(1, UserRole.CUSTOMER)).thenReturn(Optional.of(customer));
+          when(customerProfileRepository.findByUser_Id(1)).thenReturn(profile);
+          when(customerProfileRepository.save(profile)).thenReturn(profile);
 
-        CustomerUpdateRequest request = new CustomerUpdateRequest(null, "Bob", "Jones", "0698765432", null, null);
-        CustomerProfile result = customerService.updateCustomer(1, request);
+         CustomerUpdateRequest request = new CustomerUpdateRequest(null, "Bob", "Jones", "0698765432", null, null);
+         CustomerProfile result = customerService.updateCustomer(1, request);
 
-        assertEquals(profile, result);
-        assertEquals("Bob", customer.getFirstName());
-        assertEquals("Jones", customer.getLastName());
-        assertEquals("0698765432", profile.getPhoneNumber());
-        // only the profile needs saving — user changes go through automatically in the transaction
-        verify(customerProfileRepository).save(profile);
-        verify(userRepository, never()).save(any());
-        // Status did not change to ACTIVE, so no accounts should be created.
-        verify(accountService, never()).createAccountsForUser(any(), any(), any());
-    }
+         assertEquals(profile, result);
+         assertEquals("Bob", customer.getFirstName());
+         assertEquals("Jones", customer.getLastName());
+         assertEquals("0698765432", profile.getPhoneNumber());
+         // only the profile needs saving — user changes go through automatically in the transaction
+         verify(customerProfileRepository).save(profile);
+         verify(userRepository, never()).save(any());
+         // Status did not change to ACTIVE, so no accounts should be created.
+         verify(accountService, never()).createAccountsForUser(any(), any(), any());
+     }
 
-    @Test
-    void updateCustomer_whenStatusChangesToActive_createsAccountsForUser() {
-        when(userRepository.findById(1)).thenReturn(Optional.of(customer));
-        when(customerProfileRepository.findByUser_Id(1)).thenReturn(profile);
-        when(customerProfileRepository.save(profile)).thenReturn(profile);
+      @Test
+      void updateCustomer_whenStatusChangesToActive_createsAccountsForUser() {
+          when(userRepository.findByIdAndRoleWithRelations(1, UserRole.CUSTOMER)).thenReturn(Optional.of(customer));
+          when(customerProfileRepository.findByUser_Id(1)).thenReturn(profile);
+          when(customerProfileRepository.save(profile)).thenReturn(profile);
 
-        // Activating a PENDING customer triggers account creation with the provided limits.
-        CustomerUpdateRequest request = new CustomerUpdateRequest(
-                CustomerStatus.ACTIVE, null, null, null,
-                new BigDecimal("1000.00"), new BigDecimal("5000.00"));
+         // Activating a PENDING customer triggers account creation with the provided limits.
+         CustomerUpdateRequest request = new CustomerUpdateRequest(
+                 CustomerStatus.ACTIVE, null, null, null,
+                 new BigDecimal("1000.00"), new BigDecimal("5000.00"));
 
-        customerService.updateCustomer(1, request);
+         customerService.updateCustomer(1, request);
 
-        // accounts should be created with the limits from the request
-        verify(accountService).createAccountsForUser(
-                eq(customer), eq(new BigDecimal("1000.00")), eq(new BigDecimal("5000.00")));
-    }
+         // accounts should be created with the limits from the request
+         verify(accountService).createAccountsForUser(
+                 eq(customer), eq(new BigDecimal("1000.00")), eq(new BigDecimal("5000.00")));
+     }
 
-    @Test
-    void updateCustomer_alreadyActive_doesNotCreateAccountsAgain() {
-        profile.setStatus(CustomerStatus.ACTIVE);
-        when(userRepository.findById(1)).thenReturn(Optional.of(customer));
-        when(customerProfileRepository.findByUser_Id(1)).thenReturn(profile);
-        when(customerProfileRepository.save(profile)).thenReturn(profile);
+      @Test
+      void updateCustomer_alreadyActive_doesNotCreateAccountsAgain() {
+          profile.setStatus(CustomerStatus.ACTIVE);
+          when(userRepository.findByIdAndRoleWithRelations(1, UserRole.CUSTOMER)).thenReturn(Optional.of(customer));
+          when(customerProfileRepository.findByUser_Id(1)).thenReturn(profile);
+          when(customerProfileRepository.save(profile)).thenReturn(profile);
 
-        // Setting status to ACTIVE when already ACTIVE should not trigger account creation.
-        CustomerUpdateRequest request = new CustomerUpdateRequest(
-                CustomerStatus.ACTIVE, null, null, null, null, null);
+         // Setting status to ACTIVE when already ACTIVE should not trigger account creation.
+         CustomerUpdateRequest request = new CustomerUpdateRequest(
+                 CustomerStatus.ACTIVE, null, null, null, null, null);
 
-        customerService.updateCustomer(1, request);
+         customerService.updateCustomer(1, request);
 
-        verify(accountService, never()).createAccountsForUser(any(), any(), any());
-    }
+         verify(accountService, never()).createAccountsForUser(any(), any(), any());
+     }
 
-    @Test
-    void updateCustomer_whenUserNotFound_returnsNull() {
-        when(userRepository.findById(99)).thenReturn(Optional.empty());
-        // both lookups run before the null check
-        when(customerProfileRepository.findByUser_Id(99)).thenReturn(null);
+      @Test
+      void updateCustomer_whenUserNotFound_throwsResourceNotFound() {
+          when(userRepository.findByIdAndRoleWithRelations(99, UserRole.CUSTOMER)).thenReturn(Optional.empty());
 
-        CustomerUpdateRequest request = new CustomerUpdateRequest(null, "Bob", null, null, null, null);
-        CustomerProfile result = customerService.updateCustomer(99, request);
+         CustomerUpdateRequest request = new CustomerUpdateRequest(null, "Bob", null, null, null, null);
 
-        assertNull(result);
-        // nothing should be saved if user not found
-        verify(userRepository, never()).save(any());
-        verify(customerProfileRepository, never()).save(any());
-    }
+         assertThrows(ResourceNotFoundException.class, () -> customerService.updateCustomer(99, request));
+         // nothing should be saved if user not found
+         verify(userRepository, never()).save(any());
+         verify(customerProfileRepository, never()).save(any());
+     }
 
-    @Test
-    void updateCustomer_partialUpdate_onlyChangesProvidedFields() {
-        when(userRepository.findById(1)).thenReturn(Optional.of(customer));
-        when(customerProfileRepository.findByUser_Id(1)).thenReturn(profile);
-        when(customerProfileRepository.save(profile)).thenReturn(profile);
+      @Test
+      void updateCustomer_whenUserIsNotCustomer_throwsResourceNotFound() {
+          when(userRepository.findByIdAndRoleWithRelations(1, UserRole.CUSTOMER)).thenReturn(Optional.empty());
 
-        // Only firstName provided — lastName, phone, and status must remain unchanged.
-        CustomerUpdateRequest request = new CustomerUpdateRequest(null, "UpdatedFirst", null, null, null, null);
-        customerService.updateCustomer(1, request);
+         CustomerUpdateRequest request = new CustomerUpdateRequest(null, "Bob", null, null, null, null);
 
-        assertEquals("UpdatedFirst", customer.getFirstName());
-        assertEquals("Smith", customer.getLastName());         // unchanged
-        assertEquals("0612345678", profile.getPhoneNumber());  // unchanged
-        assertEquals(CustomerStatus.PENDING, profile.getStatus()); // unchanged
-    }
+         assertThrows(ResourceNotFoundException.class, () -> customerService.updateCustomer(1, request));
+         verify(customerProfileRepository, never()).findByUser_Id(1);
+         verify(customerProfileRepository, never()).save(any());
+     }
+
+      @Test
+      void updateCustomer_whenProfileNotFound_throwsResourceNotFound() {
+          when(userRepository.findByIdAndRoleWithRelations(1, UserRole.CUSTOMER)).thenReturn(Optional.of(customer));
+          when(customerProfileRepository.findByUser_Id(1)).thenReturn(null);
+
+         CustomerUpdateRequest request = new CustomerUpdateRequest(null, "Bob", null, null, null, null);
+
+         assertThrows(ResourceNotFoundException.class, () -> customerService.updateCustomer(1, request));
+         verify(customerProfileRepository, never()).save(any());
+     }
+
+      @Test
+      void updateCustomer_partialUpdate_onlyChangesProvidedFields() {
+          when(userRepository.findByIdAndRoleWithRelations(1, UserRole.CUSTOMER)).thenReturn(Optional.of(customer));
+          when(customerProfileRepository.findByUser_Id(1)).thenReturn(profile);
+          when(customerProfileRepository.save(profile)).thenReturn(profile);
+
+         // Only firstName provided — lastName, phone, and status must remain unchanged.
+         CustomerUpdateRequest request = new CustomerUpdateRequest(null, "UpdatedFirst", null, null, null, null);
+         customerService.updateCustomer(1, request);
+
+         assertEquals("UpdatedFirst", customer.getFirstName());
+         assertEquals("Smith", customer.getLastName());         // unchanged
+         assertEquals("0612345678", profile.getPhoneNumber());  // unchanged
+         assertEquals(CustomerStatus.PENDING, profile.getStatus()); // unchanged
+     }
 }

@@ -2,41 +2,30 @@ package nl.inholland.bankingapi.domain.policy;
 
 import nl.inholland.bankingapi.dtos.TransactionCreateRequest;
 import nl.inholland.bankingapi.entities.Account;
-import nl.inholland.bankingapi.entities.Transaction;
 import nl.inholland.bankingapi.entities.User;
 import nl.inholland.bankingapi.entities.enums.AccountStatus;
+import nl.inholland.bankingapi.entities.enums.AccountType;
 import nl.inholland.bankingapi.entities.enums.TransactionType;
 import nl.inholland.bankingapi.entities.enums.UserRole;
 import nl.inholland.bankingapi.exceptions.BadRequestException;
-import nl.inholland.bankingapi.repositories.TransactionRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
-import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.when;
 
-// Mockito is needed because enforceDailyTransferLimit queries TransactionRepository.
-@ExtendWith(MockitoExtension.class)
+// TransactionPolicy is now a pure domain object with no repository dependencies — no Mockito needed.
 class TransactionPolicyTest {
-
-    @Mock
-    private TransactionRepository transactionRepository;
 
     private TransactionPolicy transactionPolicy;
 
     private Account activeFromAccount;
     private Account activeToAccount;
+    private Account otherCustomerCheckingAccount;
+    private Account otherCustomerSavingsAccount;
     private Account closedAccount;
     private User customerUser;
     private User employeeUser;
@@ -45,9 +34,12 @@ class TransactionPolicyTest {
     private static final String FROM_IBAN = "NL01BANK0000000001";
     private static final String TO_IBAN   = "NL02BANK0000000002";
 
+    /** Zero outgoing spend today — the common happy-path starting point. */
+    private static final BigDecimal NO_PRIOR_SPEND = BigDecimal.ZERO;
+
     @BeforeEach
     void setUp() {
-        transactionPolicy = new TransactionPolicy(transactionRepository);
+        transactionPolicy = new TransactionPolicy();
 
         customerUser = new User();
         customerUser.setId(1);
@@ -63,6 +55,7 @@ class TransactionPolicyTest {
 
         activeFromAccount = new Account();
         activeFromAccount.setIban(FROM_IBAN);
+        activeFromAccount.setType(AccountType.CHECKING);
         activeFromAccount.setStatus(AccountStatus.ACTIVE);
         activeFromAccount.setBalance(new BigDecimal("1000.00"));
         activeFromAccount.setAbsoluteTransferLimit(new BigDecimal("-500.00"));
@@ -71,11 +64,25 @@ class TransactionPolicyTest {
 
         activeToAccount = new Account();
         activeToAccount.setIban(TO_IBAN);
+        activeToAccount.setType(AccountType.SAVINGS);
         activeToAccount.setStatus(AccountStatus.ACTIVE);
         activeToAccount.setUser(customerUser);
 
+        otherCustomerCheckingAccount = new Account();
+        otherCustomerCheckingAccount.setIban("NL04BANK0000000004");
+        otherCustomerCheckingAccount.setType(AccountType.CHECKING);
+        otherCustomerCheckingAccount.setStatus(AccountStatus.ACTIVE);
+        otherCustomerCheckingAccount.setUser(otherCustomer);
+
+        otherCustomerSavingsAccount = new Account();
+        otherCustomerSavingsAccount.setIban("NL05BANK0000000005");
+        otherCustomerSavingsAccount.setType(AccountType.SAVINGS);
+        otherCustomerSavingsAccount.setStatus(AccountStatus.ACTIVE);
+        otherCustomerSavingsAccount.setUser(otherCustomer);
+
         closedAccount = new Account();
         closedAccount.setIban("NL03BANK0000000003");
+        closedAccount.setType(AccountType.CHECKING);
         closedAccount.setStatus(AccountStatus.CLOSED);
         closedAccount.setUser(customerUser);
     }
@@ -86,12 +93,10 @@ class TransactionPolicyTest {
     void enforceTransferPolicy_happyPath_doesNotThrow() {
         TransactionCreateRequest request = new TransactionCreateRequest(
                 FROM_IBAN, TO_IBAN, null, new BigDecimal("100.00"), TransactionType.TRANSFER, null);
-        when(transactionRepository.findByFromIbanAndTypeAndTimestampGreaterThanEqual(
-                eq(FROM_IBAN), eq(TransactionType.TRANSFER), any(LocalDateTime.class)))
-                .thenReturn(List.of());
 
         assertDoesNotThrow(
-                () -> transactionPolicy.enforceTransferPolicy(request, activeFromAccount, activeToAccount, customerUser));
+                () -> transactionPolicy.enforceTransferPolicy(
+                        request, activeFromAccount, activeToAccount, customerUser, NO_PRIOR_SPEND));
     }
 
     @Test
@@ -100,7 +105,8 @@ class TransactionPolicyTest {
                 null, TO_IBAN, null, new BigDecimal("100.00"), TransactionType.TRANSFER, null);
 
         assertThrows(BadRequestException.class,
-                () -> transactionPolicy.enforceTransferPolicy(request, activeFromAccount, activeToAccount, customerUser));
+                () -> transactionPolicy.enforceTransferPolicy(
+                        request, activeFromAccount, activeToAccount, customerUser, NO_PRIOR_SPEND));
     }
 
     @Test
@@ -109,7 +115,8 @@ class TransactionPolicyTest {
                 FROM_IBAN, FROM_IBAN, null, new BigDecimal("100.00"), TransactionType.TRANSFER, null);
 
         assertThrows(BadRequestException.class,
-                () -> transactionPolicy.enforceTransferPolicy(request, activeFromAccount, activeFromAccount, customerUser));
+                () -> transactionPolicy.enforceTransferPolicy(
+                        request, activeFromAccount, activeFromAccount, customerUser, NO_PRIOR_SPEND));
     }
 
     @Test
@@ -118,7 +125,8 @@ class TransactionPolicyTest {
                 FROM_IBAN, TO_IBAN, null, new BigDecimal("100.00"), TransactionType.TRANSFER, null);
 
         assertThrows(BadRequestException.class,
-                () -> transactionPolicy.enforceTransferPolicy(request, closedAccount, activeToAccount, customerUser));
+                () -> transactionPolicy.enforceTransferPolicy(
+                        request, closedAccount, activeToAccount, customerUser, NO_PRIOR_SPEND));
     }
 
     @Test
@@ -127,7 +135,40 @@ class TransactionPolicyTest {
                 FROM_IBAN, TO_IBAN, null, new BigDecimal("100.00"), TransactionType.TRANSFER, null);
 
         assertThrows(ResponseStatusException.class,
-                () -> transactionPolicy.enforceTransferPolicy(request, activeFromAccount, activeToAccount, otherCustomer));
+                () -> transactionPolicy.enforceTransferPolicy(
+                        request, activeFromAccount, activeToAccount, otherCustomer, NO_PRIOR_SPEND));
+    }
+
+    @Test
+    void enforceTransferPolicy_allowsCustomerExternalTransferToCheckingAccount() {
+        TransactionCreateRequest request = new TransactionCreateRequest(
+                FROM_IBAN, otherCustomerCheckingAccount.getIban(), null,
+                new BigDecimal("100.00"), TransactionType.TRANSFER, null);
+
+        assertDoesNotThrow(
+                () -> transactionPolicy.enforceTransferPolicy(
+                        request, activeFromAccount, otherCustomerCheckingAccount, customerUser, NO_PRIOR_SPEND));
+    }
+
+    @Test
+    void enforceTransferPolicy_throwsWhenCustomerExternalTransferTargetsSavingsAccount() {
+        TransactionCreateRequest request = new TransactionCreateRequest(
+                FROM_IBAN, otherCustomerSavingsAccount.getIban(), null,
+                new BigDecimal("100.00"), TransactionType.TRANSFER, null);
+
+        assertThrows(BadRequestException.class,
+                () -> transactionPolicy.enforceTransferPolicy(
+                        request, activeFromAccount, otherCustomerSavingsAccount, customerUser, NO_PRIOR_SPEND));
+    }
+
+    @Test
+    void enforceTransferPolicy_allowsCustomerTransferBetweenOwnAccounts() {
+        TransactionCreateRequest request = new TransactionCreateRequest(
+                FROM_IBAN, TO_IBAN, null, new BigDecimal("100.00"), TransactionType.TRANSFER, null);
+
+        assertDoesNotThrow(
+                () -> transactionPolicy.enforceTransferPolicy(
+                        request, activeFromAccount, activeToAccount, customerUser, NO_PRIOR_SPEND));
     }
 
     @Test
@@ -137,7 +178,8 @@ class TransactionPolicyTest {
 
         // balance 1000 - 1600 = -600, below absoluteTransferLimit of -500
         assertThrows(BadRequestException.class,
-                () -> transactionPolicy.enforceTransferPolicy(request, activeFromAccount, activeToAccount, customerUser));
+                () -> transactionPolicy.enforceTransferPolicy(
+                        request, activeFromAccount, activeToAccount, customerUser, NO_PRIOR_SPEND));
     }
 
     // --- enforceDepositPolicy (high-level) ---
@@ -174,12 +216,10 @@ class TransactionPolicyTest {
     void enforceWithdrawalPolicy_happyPath_doesNotThrow() {
         TransactionCreateRequest request = new TransactionCreateRequest(
                 FROM_IBAN, null, null, new BigDecimal("100.00"), TransactionType.WITHDRAWAL, null);
-        when(transactionRepository.findByFromIbanAndTypeAndTimestampGreaterThanEqual(
-                eq(FROM_IBAN), eq(TransactionType.TRANSFER), any(LocalDateTime.class)))
-                .thenReturn(List.of());
 
         assertDoesNotThrow(
-                () -> transactionPolicy.enforceWithdrawalPolicy(request, activeFromAccount, customerUser));
+                () -> transactionPolicy.enforceWithdrawalPolicy(
+                        request, activeFromAccount, customerUser, NO_PRIOR_SPEND));
     }
 
     @Test
@@ -188,7 +228,8 @@ class TransactionPolicyTest {
                 null, null, null, new BigDecimal("100.00"), TransactionType.WITHDRAWAL, null);
 
         assertThrows(BadRequestException.class,
-                () -> transactionPolicy.enforceWithdrawalPolicy(request, activeFromAccount, customerUser));
+                () -> transactionPolicy.enforceWithdrawalPolicy(
+                        request, activeFromAccount, customerUser, NO_PRIOR_SPEND));
     }
 
     @Test
@@ -197,7 +238,8 @@ class TransactionPolicyTest {
                 FROM_IBAN, null, null, new BigDecimal("100.00"), TransactionType.WITHDRAWAL, null);
 
         assertThrows(BadRequestException.class,
-                () -> transactionPolicy.enforceWithdrawalPolicy(request, closedAccount, customerUser));
+                () -> transactionPolicy.enforceWithdrawalPolicy(
+                        request, closedAccount, customerUser, NO_PRIOR_SPEND));
     }
 
     @Test
@@ -206,7 +248,8 @@ class TransactionPolicyTest {
                 FROM_IBAN, null, null, new BigDecimal("100.00"), TransactionType.WITHDRAWAL, null);
 
         assertThrows(ResponseStatusException.class,
-                () -> transactionPolicy.enforceWithdrawalPolicy(request, activeFromAccount, otherCustomer));
+                () -> transactionPolicy.enforceWithdrawalPolicy(
+                        request, activeFromAccount, otherCustomer, NO_PRIOR_SPEND));
     }
 
     // --- enforceSourceAccountOwner (individual rule — employee bypass is worth testing directly) ---
@@ -243,29 +286,29 @@ class TransactionPolicyTest {
                 () -> transactionPolicy.enforceAbsoluteTransferLimit(activeFromAccount, new BigDecimal("1400.00")));
     }
 
-    // --- enforceDailyTransferLimit (individual rule — repository interaction tested here) ---
+    // --- enforceDailyTransferLimit (individual rule — outgoingToday is now supplied directly, no repo needed) ---
 
     @Test
     void enforceDailyTransferLimit_throwsWhenDailyLimitExceeded() {
-        Transaction existing = new Transaction();
-        existing.setAmount(new BigDecimal("1500.00"));
-        when(transactionRepository.findByFromIbanAndTypeAndTimestampGreaterThanEqual(
-                eq(FROM_IBAN), eq(TransactionType.TRANSFER), any(LocalDateTime.class)))
-                .thenReturn(List.of(existing));
-
         // 1500 already transferred today + 600 new = 2100 > dailyTransferLimit of 2000
         assertThrows(BadRequestException.class,
-                () -> transactionPolicy.enforceDailyTransferLimit(activeFromAccount, new BigDecimal("600.00")));
+                () -> transactionPolicy.enforceDailyTransferLimit(
+                        activeFromAccount, new BigDecimal("1500.00"), new BigDecimal("600.00")));
+    }
+
+    @Test
+    void enforceDailyTransferLimit_countsPriorWithdrawalsAgainstLimit() {
+        // 1500 already withdrawn today + 600 new = 2100 > dailyTransferLimit of 2000
+        assertThrows(BadRequestException.class,
+                () -> transactionPolicy.enforceDailyTransferLimit(
+                        activeFromAccount, new BigDecimal("1500.00"), new BigDecimal("600.00")));
     }
 
     @Test
     void enforceDailyTransferLimit_allowsWhenWithinDailyLimit() {
-        when(transactionRepository.findByFromIbanAndTypeAndTimestampGreaterThanEqual(
-                eq(FROM_IBAN), eq(TransactionType.TRANSFER), any(LocalDateTime.class)))
-                .thenReturn(List.of());
-
         // 0 transferred today + 500 = 500 < dailyTransferLimit of 2000
         assertDoesNotThrow(
-                () -> transactionPolicy.enforceDailyTransferLimit(activeFromAccount, new BigDecimal("500.00")));
+                () -> transactionPolicy.enforceDailyTransferLimit(
+                        activeFromAccount, BigDecimal.ZERO, new BigDecimal("500.00")));
     }
 }

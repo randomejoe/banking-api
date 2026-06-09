@@ -87,7 +87,7 @@
               "host": ["{{baseUrl}}"],
               "path": ["customers"],
               "query": [
-                { "key": "status", "value": "ACTIVE", "description": "PENDING | ACTIVE | INACTIVE" },
+                { "key": "status", "value": "ACTIVE", "description": "PENDING | ACTIVE | CLOSED" },
                 { "key": "search", "value": "", "description": "Search by name or email" }
               ]
             }
@@ -131,13 +131,15 @@
             "method": "GET",
             "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
             "url": {
-              "raw": "{{baseUrl}}/customers/1/transactions?type=&minAmount=&maxAmount=",
+              "raw": "{{baseUrl}}/customers/1/transactions?type=&minAmount=&maxAmount=&startDate=&endDate=",
               "host": ["{{baseUrl}}"],
               "path": ["customers", "1", "transactions"],
               "query": [
                 { "key": "type", "value": "", "description": "TRANSFER | DEPOSIT | WITHDRAWAL" },
                 { "key": "minAmount", "value": "" },
-                { "key": "maxAmount", "value": "" }
+                { "key": "maxAmount", "value": "" },
+                { "key": "startDate", "value": "", "description": "YYYY-MM-DD, inclusive lower bound" },
+                { "key": "endDate", "value": "", "description": "YYYY-MM-DD, inclusive upper bound" }
               ]
             }
           }
@@ -148,7 +150,7 @@
       "name": "Accounts",
       "item": [
         {
-          "name": "Get All Accounts",
+          "name": "Employee Account Search",
           "request": {
             "method": "GET",
             "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
@@ -161,9 +163,39 @@
                 { "key": "type", "value": "", "description": "CHECKING | SAVINGS" },
                 { "key": "status", "value": "", "description": "ACTIVE | CLOSED" },
                 { "key": "iban", "value": "", "description": "Filter by exact IBAN" },
-                { "key": "name", "value": "", "description": "Search by customer first name, last name or email" }
+                { "key": "name", "value": "", "description": "Employee search by customer first name, last name, or email." }
               ]
-            }
+            },
+            "description": "Employee-only private account search. Customers should use /accounts/me or /accounts/transfer-targets."
+          }
+        },
+        {
+          "name": "My Accounts",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/accounts/me",
+              "host": ["{{baseUrl}}"],
+              "path": ["accounts", "me"]
+            },
+            "description": "Active customer-only endpoint for the current customer's own accounts."
+          }
+        },
+        {
+          "name": "Transfer Target Search",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/accounts/transfer-targets?name=",
+              "host": ["{{baseUrl}}"],
+              "path": ["accounts", "transfer-targets"],
+              "query": [
+                { "key": "name", "value": "", "description": "Customer first or last name fragment. Returns only active checking accounts for other customers." }
+              ]
+            },
+            "description": "Active customer-only public lookup. Response rows expose only iban, firstName, and lastName."
           }
         },
         {
@@ -198,14 +230,16 @@
             "method": "GET",
             "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
             "url": {
-              "raw": "{{baseUrl}}/transactions?iban=&type=&minAmount=&maxAmount=",
+              "raw": "{{baseUrl}}/transactions?iban=&type=&minAmount=&maxAmount=&startDate=&endDate=",
               "host": ["{{baseUrl}}"],
               "path": ["transactions"],
               "query": [
                 { "key": "iban", "value": "" },
                 { "key": "type", "value": "", "description": "TRANSFER | DEPOSIT | WITHDRAWAL" },
                 { "key": "minAmount", "value": "" },
-                { "key": "maxAmount", "value": "" }
+                { "key": "maxAmount", "value": "" },
+                { "key": "startDate", "value": "", "description": "YYYY-MM-DD, inclusive lower bound" },
+                { "key": "endDate", "value": "", "description": "YYYY-MM-DD, inclusive upper bound" }
               ]
             }
           }
@@ -227,7 +261,8 @@
               "mode": "raw",
               "options": { "raw": { "language": "json" } },
               "raw": "{\n  \"fromIban\": \"NL01BANK0000000001\",\n  \"toIban\": \"NL01BANK0000000003\",\n  \"amount\": 100.00,\n  \"type\": \"TRANSFER\",\n  \"description\": \"Rent payment\"\n}"
-            }
+            },
+            "description": "Customers must be ACTIVE. External customer transfers must target a CHECKING account. Daily outgoing limits count TRANSFER and WITHDRAWAL transactions."
           }
         }
       ]
